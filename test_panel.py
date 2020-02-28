@@ -5,6 +5,8 @@ from os import path
 import subprocess
 import threading
 
+rigName = ""
+
 class ATS_Setup_Operator(bpy.types.Operator):
     bl_label = "ATS Configuration"
     bl_idname = "wm.ats_setup"
@@ -46,13 +48,15 @@ class SimpleCustomMenu(bpy.types.Panel):
         layout = self.layout
         scene = context.scene
 
+        print('hello')
+
         layout.label(text="Open ATS Configuration", icon='ARROW_LEFTRIGHT')
         layout.operator("wm.ats_setup")
+        layout.menu("OBJECT_MT_select_test", text="Select Module Port")
         layout.separator()
         layout.label(text="Setup Rig", icon='INFO')
-        layout.prop(scene, "Rig")
+        layout.prop(scene, "Rig", text="Select Rig")
         layout.operator("view3d.setup_rig")
-        layout.menu("OBJECT_MT_select_test", text="Select Module Port")
         layout.separator()
         layout.label(text="Create New Animation", icon='DISCLOSURE_TRI_RIGHT')
         layout.operator("view3d.setup_rig", text="Start Animation")
@@ -73,11 +77,16 @@ class OPEN_ATS_CONFIG(threading.Thread):
         self.stdout, self.stderr = p.communicate()
 
 def scene_rig_poll(self, object):
-    return true
+    if self.objects.get(object.name) == None:
+        bpy.data.objects.remove(object)
+        return False
+    else:
+        rigName = object.name
+        return True
 
 def register():
     bpy.types.Scene.Rig = bpy.props.PointerProperty(
-        type=bpy.types.Object,
+        type=bpy.types.Armature,
         poll=scene_rig_poll
     )
 
