@@ -22,15 +22,19 @@ bl_info = {
     "category" : "Generic"
 }
 
+import bpy
 from . import auto_load
 from . test_module import TEST_MODULE
-from . test_panel import MAIN_UI_PANEL
+from . test_panel import SimpleCustomMenu
 from . setup_rig import SETUP_RIG
 from . auto_keyframe import AUTO_KEYFRAME
+from . leyoutDemo import OBJECT_PT_HelloWorldPanel
 
-classes = (TEST_MODULE, MAIN_UI_PANEL, SETUP_RIG, AUTO_KEYFRAME)
+#classes = (TEST_MODULE, SimpleCustomMenu, SETUP_RIG, AUTO_KEYFRAME)
 
 auto_load.init()
+
+#register, unregister = bpy.utils.register_classes_factory(classes)
 
 def register():
     auto_load.register()

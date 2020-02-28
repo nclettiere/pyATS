@@ -33,6 +33,10 @@ def register():
         if hasattr(module, "register"):
             module.register()
 
+    bpy.types.Scene.coll = bpy.props.CollectionProperty(
+        type=bpy.types.PropertyGroup
+    )
+
 def unregister():
     for cls in reversed(ordered_classes):
         bpy.utils.unregister_class(cls)

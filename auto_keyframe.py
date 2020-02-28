@@ -20,7 +20,7 @@ class AUTO_KEYFRAME(bpy.types.Operator) :
     
     def call_interface():
         print('executed!')
-        #popen = subprocess.Popen(['C:\\Users\\Bloomberg\\source\\repos\\ATS Interface\\ATS Interface\\bin\\Release\\ATS Interface.exe'], stdout=subprocess.PIPE, universal_newlines=True)
+        #popen = subprocess.Popen(['C:\\Users\\Bloomberg\\Desktop\\ATS\\ATS Interface\\bin\\Release\\ATS Interface.exe'], stdout=subprocess.PIPE, universal_newlines=True)
         #for stdout_line in iter(popen.stdout.readline, ""):
         #    yield stdout_line 
         #popen.stdout.close()
@@ -37,7 +37,7 @@ class MyClass(threading.Thread):
         threading.Thread.__init__(self)
 
     def run(self):
-        p = subprocess.Popen('C:\\Users\\Bloomberg\\source\\repos\\ATS Interface\\ATS Interface\\bin\\Release\\ATS Interface.exe'.split(),
+        p = subprocess.Popen('C:\\Users\\Bloomberg\\Desktop\\ATS\\ATS Interface\\bin\\Release\\ATS Interface.exe'.split(),
                              shell=False,
                              stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE)

@@ -7,6 +7,11 @@ class SETUP_RIG(bpy.types.Operator) :
     bl_name = "Setup Rig"
     bl_description = "Setup a rigged model to animate"
 
+    @classmethod
+    def poll(cls, context):
+        return (context.object is not None and
+                context.object.type == 'ARMATURE')
+
     def execute(self, context):
         # BONES TO MODIFY
         # root
