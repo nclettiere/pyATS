@@ -2,6 +2,7 @@ import bpy
 from bpy.types import (Panel, Operator, PropertyGroup)
 from bpy.props import (FloatVectorProperty, IntProperty, EnumProperty, BoolProperty, PointerProperty)
 import sys, threading, time
+from pyquaternion import Quaternion
 import socket
 import json
 
@@ -146,9 +147,41 @@ class thread_with_trace(threading.Thread):
   
   def kill(self): 
     self.killed = True
+
+
+class CalibrationData:
+    def __init__(self, name, quat):
+        self.name = name
+        self.quat = quat
+
+
+calib_list = []
+
+
+class Calibration:
+    def __init__(self, gyro_dict={}):
+        self.gyro_dict = gyro_dict
+    
+    def push(self, name, quat):
+        global calib_list
+        if any(name in f for f in calib_list):
+            calib_list.append( CalibrationData(name, quat) )
+            
+    def get_calib_result(self, name):
+        global calib_list
+        print('haha {}'.format(next((e for e in calib_list if e.name == name))))
+        return next((e for e in calib_list if e.name == name), None)
+    
   
-  
+
+calib_started = False
+calib = Calibration()
+
 def thread_update():
+    global calibrate
+    global calib_started
+    global calib
+    
     UDP_IP_ADDRESS = "0.0.0.0"
     UDP_PORT_NO = 7755
     BUFFER_SIZE = 1024
@@ -160,19 +193,35 @@ def thread_update():
     last_rotation_quat = scene.objects[0].rotation_quaternion
     
     while(True):
-        global calibrate
+        data, addr = serverSock.recvfrom(BUFFER_SIZE)
+        data = json.loads(data.decode('utf-8'))
+        
+        w = float(data["qW"])
+        x = float(data["qX"])
+        y = float(data["qY"])
+        z = float(data["qZ"])
+        
+        
         if calibrate:
-            print('Calibration signal detected')
-            calibrate = False
+            try:
+                if calib_started == False:
+                    calib_started = True
+    
+                    calib.push('gyroSensor01', (w, x, y, z))
+                    
+                    gyroQuaternionInverse = inverse_quat((w, x, y, z))
+                    gyroQuaternionCalibrationResult = calib.get_calib_result('gyroSensor01')
+                    
+                    print(gyroQuaternionCalibrationResult)
+                    
+                    if gyroQuaternionCalibrationResult != None:
+                        gyroQuaternion = gyroQuaternionInverse * gyroQuaternionCalibrationResult
+                        calibrate = False
+                        calib_started = False
+            except:
+                calibrate = False
+                calib_started = False
         else:
-            data, addr = serverSock.recvfrom(BUFFER_SIZE)
-            data = json.loads(data.decode('utf-8'))
-            
-            w = float(data["qW"])
-            x = float(data["qX"])
-            y = float(data["qY"])
-            z = float(data["qZ"])
-            
             #print(type(bpy.context.scene.custom_props.enum_axis_x))
             
             if bpy.context.scene.custom_props.enum_axis_x == '0':
@@ -216,7 +265,7 @@ def thread_update():
             
             rotation_quat = (w, x, y, z)
             last_rotation_quat = rotation_quat
-            
+
             #bpy.ops.transform.rotate(value=float(z), orient_axis='Z')
 
             #scene['RotationQuat'] = rotation_quat
@@ -230,10 +279,22 @@ def thread_update():
 
 thread = None
 
+def inverse_quat(q):
+    tmp_quat = Quaternion(axis=[q[1], q[2], q[3]], angle=q[0])
+    inv = tmp_quat.inverse
+    return (inv)
+    
+    
+
 class SimpleOperator(Operator):
     """Print object name in Console"""
     bl_idname = "object.simple_operator"
     bl_label = "Simple Object Operator"
+    
+    @classmethod
+    def poll(cls, context):
+        global calibrate
+        return not calibrate
         
     def execute(self, context):
         global streaming
@@ -258,9 +319,15 @@ class CalibrateOperator(Operator):
     bl_idname = "object.calib_operator"
     bl_label = "Simple Object Operator"
     
+    @classmethod
+    def poll(cls, context):
+        global calibrate
+        return not calibrate
+    
     def execute(self, context):
         global calibrate
         calibrate = True
+        self.report({'PROPERTY'}, "Calibration has started, please wait.")
         return {'FINISHED'}
 
 class OBPanel(bpy.types.Panel):
@@ -317,7 +384,12 @@ class OBPanel(bpy.types.Panel):
             
         view = context.space_data
         overlay = view.overlay
-            
+         
+        if calibrate:
+           layout.enabled = False 
+        else:
+            layout.enabled = True 
+         
         box = layout.box()
         box.label(text="General")
         col = box.column()
