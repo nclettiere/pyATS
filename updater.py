@@ -197,6 +197,7 @@ def thread_update():
     global calib_list
     global anim_frame
     global calibration_count
+    global streaming
     
     UDP_IP_ADDRESS = "0.0.0.0"
     UDP_PORT_NO = 7755
@@ -210,7 +211,7 @@ def thread_update():
     
     #bpy.ops.object.mode_set(mode='POSE')
     
-    while(True):
+    while(streaming):
         data, addr = serverSock.recvfrom(BUFFER_SIZE)
         data = json.loads(data.decode('utf-8'))
         
@@ -280,8 +281,6 @@ def thread_update():
             print('Lock signal for W Axis applied')
         
         
-        w = -1
-        
         rotation_quat = (w, x, y, z)
         last_rotation_quat = rotation_quat
 
@@ -301,42 +300,40 @@ def thread_update():
         pbone = ob.pose.bones["Head"]
         # Set rotation mode to Euler XYZ, easier to understand
         # than default quaternions
-        pbone.rotation_mode = 'XYZ'
         # select axis in ['X','Y','Z']  <--bone local
-        axis = 'Z'
-        angle = 120
+
         pbone.rotation_mode = 'QUATERNION'
         
-        #if not calibrate:
-        #    print(int(bpy.context.scene.custom_props.calibration_samples))
-        #    print(calibration_count)
-        #    if calibration_count < int(bpy.context.scene.custom_props.calibration_samples):
-        #        print('calibrating...')
-        #    
-        #        push('gyroSensor01', (w, x, y, z))
-        #        
-        #        gyroQuaternionInverse = inverse_quat((w, x, y, z))
-        #        gyroQuaternionCalibrationResult = next(e for e in calib_list if e.name == 'gyroSensor01').quat
-        #
-        #        if gyroQuaternionCalibrationResult != None:
-        #            gyroQuaternion = gyroQuaternionInverse * gyroQuaternionCalibrationResult
-        #            gyroQuaternion = gyroQuaternion.normalised
-        #            
-        #            quat = (gyroQuaternion.w, gyroQuaternion.x, gyroQuaternion.y, gyroQuaternion.z)
-        #            
-        #            pbone.rotation_quaternion = quat
-        #            calibration_count = calibration_count + 1
-        #            print('yes?')
-        #        else:
-        #            print('result none')
-        #            calibration_count = calibration_count + 1
-        #    else:
-        #        print('nani?')
-        #        calibrate = False
-        #        calibration_count = 0
-        #else:
-        #    print('nani2?')
-        pbone.rotation_quaternion = rotation_quat
+        if calibrate:
+            print(int(bpy.context.scene.custom_props.calibration_samples))
+            print(calibration_count)
+            if calibration_count < int(bpy.context.scene.custom_props.calibration_samples):
+                print('calibrating...')
+            
+                push('gyroSensor01', (w, x, y, z))
+                
+                gyroQuaternionInverse = inverse_quat((w, x, y, z))
+                gyroQuaternionCalibrationResult = next(e for e in calib_list if e.name == 'gyroSensor01').quat
+        
+                if gyroQuaternionCalibrationResult != None:
+                    gyroQuaternion = gyroQuaternionInverse * gyroQuaternionCalibrationResult
+                    gyroQuaternion = gyroQuaternion.normalised
+                    
+                    quat = (gyroQuaternion.w, gyroQuaternion.x, gyroQuaternion.y, gyroQuaternion.z)
+                    
+                    pbone.rotation_quaternion = quat
+                    calibration_count = calibration_count + 1
+                    print('yes?')
+                else:
+                    print('result none')
+                    calibration_count = calibration_count + 1
+            else:
+                print('calibration done.')
+                calibrate = False
+                calibration_count = 0
+        else:
+            print('nani2?')
+            pbone.rotation_quaternion = rotation_quat
         #bpy.ops.object.mode_set(mode='OBJECT')
         #insert a keyframe
         pbone.keyframe_insert(data_path="rotation_quaternion" ,frame=anim_frame)
