@@ -1,20 +1,24 @@
+from ATS_Rotations import Quaternion
+from ATS_Rotations import GyroQuaternionCalibrationModel
+from ATS_Rotations import SensorCalibration
 import bpy
 from bpy.types import (Panel, Operator, PropertyGroup)
 from bpy.props import (FloatVectorProperty, IntProperty, EnumProperty, BoolProperty, PointerProperty)
 import sys, threading, time
 import math
-from pyquaternion import Quaternion
 import socket
 import json
+import binascii
 
 calibrate = False
 streaming = False
+calib_started = False
+anim_frame = 1
+calibration_count = 0
 calibration_samples = 100
 
-def update_rot(self, context):
-    global val
-    bpy.context.active_object.rotation_mode = 'QUATERNION'
-    bpy.context.active_object.rotation_quaternion  = val
+sensor_calibration = SensorCalibration()
+
 
 def update_x_enum(self, context):
     # self = current scene in an EnumProperty callback!
@@ -46,7 +50,6 @@ class MyProperties(PropertyGroup):
 
     RotationQuat: FloatVectorProperty(
         name = "RotationQuat",
-        update=update_rot,
         default=(0.0, 0.0, 0.0),
         subtype = 'QUATERNION'
         # 'COLOR', 'TRANSLATION', 'DIRECTION', 'VELOCITY', 
@@ -168,33 +171,18 @@ class thread_with_trace(threading.Thread):
     self.killed = True
 
 
-class CalibrationData:
-    def __init__(self, name, quat):
-        self.name = name
-        self.quat = quat
+def quat_multiply(q1 : Quaternion, q2 : Quaternion):
+    qX = q1.qW * q2.qX + q1.qX * q2.qW + q1.qY * q2.qZ - q1.qZ * q2.qY
+    qY = q1.qW * q2.qY + q1.qY * q2.qW + q1.qZ * q2.qX - q1.qX * q2.qZ
+    qZ = q1.qW * q2.qZ + q1.qZ * q2.qW + q1.qX * q2.qY - q1.qY * q2.qX
+    qW = q1.qW * q2.qW - q1.qX * q2.qX - q1.qY * q2.qY - q1.qZ * q2.qZ
 
-
-calib_list = []
-
-def push(name, quat):
-    global calib_list
-    calib_list.append(CalibrationData(name, quat) )
-
-
-def inverse_quat(q):
-    tmp_quat = Quaternion(axis=[q[1], q[2], q[3]], angle=q[0])
-    inv = tmp_quat.inverse
-    return (inv)
-
-calib_started = False
-
-anim_frame = 1
-calibration_count = 0
+    return Quaternion(q1.sensorName, qX, qY, qZ, qW)
 
 def thread_update():
     global calibrate
     global calib_started
-    global calib_list
+    global sensor_calibration
     global anim_frame
     global calibration_count
     global streaming
@@ -287,7 +275,6 @@ def thread_update():
         #bpy.ops.transform.rotate(value=float(z), orient_axis='Z')
 
         #scene['RotationQuat'] = rotation_quat
-        #update_rot(self, context)
         #bpy.context.scene.objects[bpy.context.scene.arma].select_get()
         #bpy.scene.objects[0].rotation_mode = 'QUATERNION'
         #bpy.scene.objects[0].rotation_quaternion  = rotation_quat
@@ -297,7 +284,7 @@ def thread_update():
         #if bpy.context.object.mode != 'POSE':
         #    bpy.ops.object.mode_set(mode='POSE')
         
-        pbone = ob.pose.bones["Head"]
+        pbone = ob.pose.bones["Upper Arm.L"]
         # Set rotation mode to Euler XYZ, easier to understand
         # than default quaternions
         # select axis in ['X','Y','Z']  <--bone local
@@ -310,16 +297,20 @@ def thread_update():
             if calibration_count < int(bpy.context.scene.custom_props.calibration_samples):
                 print('calibrating...')
             
-                push('gyroSensor01', (w, x, y, z))
+                q = Quaternion('gyroSensor01', qX=x, qY=y, qZ=z, qW=w)
+                sensor_calibration.push(q)
                 
-                gyroQuaternionInverse = inverse_quat((w, x, y, z))
-                gyroQuaternionCalibrationResult = next(e for e in calib_list if e.name == 'gyroSensor01').quat
-        
+                gyroQuaternionInverse = q.inverse()
+
+                gyroQuaternionCalibrationResult = sensor_calibration.get_calib_result('gyroSensor01')
+
                 if gyroQuaternionCalibrationResult != None:
-                    gyroQuaternion = gyroQuaternionInverse * gyroQuaternionCalibrationResult
-                    gyroQuaternion = gyroQuaternion.normalised
-                    
-                    quat = (gyroQuaternion.w, gyroQuaternion.x, gyroQuaternion.y, gyroQuaternion.z)
+                    gyroQuaternion = quat_multiply(gyroQuaternionInverse, gyroQuaternionCalibrationResult)
+
+                    MESSAGE = gyroQuaternion.toJSON().encode()
+                    serverSock.sendto(MESSAGE, ("192.168.1.47", 7755))
+
+                    quat = (gyroQuaternion.qW, gyroQuaternion.qX, gyroQuaternion.qY, gyroQuaternion.qZ)
                     
                     pbone.rotation_quaternion = quat
                     calibration_count = calibration_count + 1

@@ -1,31 +1,30 @@
 import numpy as np
+import json
 
 class Quaternion:
     def __init__(self, sensor_name, qX=0.0, qY=0.0, qZ=0.0, qW=0.0):
+        self.type = "gyroData"
         self.sensorName = sensor_name
         self.qX=qX
         self.qY=qY
         self.qZ=qZ
         self.qW=qW
 
-    def inverse(self, quat : Quaternion):
-        quaternion2 =  Quaternion(quat.sensorName, 0, 0, 0, -1)
-        num2 = (quat.qX * quat.qX) + (quat.qY * quat.qY) + (quat.qZ * quat.qZ) + (quat.qW * quat.qW)
+    def toJSON(self):
+        return json.dumps(self, default=lambda o: o.__dict__, 
+            sort_keys=True, indent=4)
+
+    def inverse(self):
+        quaternion2 =  Quaternion(self.sensorName, 0, 0, 0, -1)
+        num2 = (self.qX * self.qX) + (self.qY * self.qY) + (self.qZ * self.qZ) + (self.qW * self.qW)
         num = (1.0 / num2)
 
-        quaternion2.qX = -quat.qX * num
-        quaternion2.qY = -quat.qY * num
-        quaternion2.qZ = -quat.qZ * num
-        quaternion2.qW = quat.qW * num
+        quaternion2.qX = -self.qX * num
+        quaternion2.qY = -self.qY * num
+        quaternion2.qZ = -self.qZ * num
+        quaternion2.qW = self.qW * num
 
         return quaternion2
-
-    def multiply(self, q1 : Quaternion, q2 : Quaternion):
-        qX = q1.qW * q2.qX + q1.qX * q2.qW + q1.qY * q2.qZ - q1.qZ * q2.qY
-        qY = q1.qW * q2.qY + q1.qY * q2.qW + q1.qZ * q2.qX - q1.qX * q2.qZ
-        qZ = q1.qW * q2.qZ + q1.qZ * q2.qW + q1.qX * q2.qY - q1.qY * q2.qX
-        qW = q1.qW * q2.qW - q1.qX * q2.qX - q1.qY * q2.qY - q1.qZ * q2.qZ
-        return Quaternion(q1.sensorName, qX, qY, qZ, qW)
 
     def normalize_axis(self, angle : float):
         angle = self.Fmod(angle, 360)
@@ -33,6 +32,7 @@ class Quaternion:
             angle += 360.0
         if (angle > 180.0):
             angle -= 360.0
+
         return angle
     
     def Fmod(self, X : float, Y : float): 
@@ -51,7 +51,6 @@ class Quaternion:
 
     ## TODO def quat_to_euler(self, quat : Quaternion):
 
-
 class GyroQuaternionCalibrationModel:
     def __init__(self, GyroQuaternion : Quaternion, CalibrationCount=0, CalibrationComplete=False):
         self.GyroQuaternion = GyroQuaternion
@@ -65,3 +64,7 @@ class SensorCalibration:
     def push(self, quat : Quaternion):
         if not any(quat.sensorName in c for c in self.calibration_dictionaty):
             self.calibration_dictionaty.update({quat.sensorName : Quaternion(quat.sensorName, quat.qX, quat.qY, quat.qZ, quat.qW)})
+
+    def get_calib_result(self, sensor_name : str):
+        print('='*20)
+        return self.calibration_dictionaty[next(f for f in self.calibration_dictionaty if f == sensor_name)]

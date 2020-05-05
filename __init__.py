@@ -23,11 +23,14 @@ bl_info = {
 }
 
 from . import auto_load
+from . import updater
 
 auto_load.init()
 
 def register():
     auto_load.register()
+    updater.register()
 
 def unregister():
     auto_load.unregister()
+    updater.unregister()
