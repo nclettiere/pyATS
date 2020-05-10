@@ -195,145 +195,130 @@ def thread_update():
     serverSock.bind((UDP_IP_ADDRESS, UDP_PORT_NO))
     
     scene = bpy.context.scene
-    last_rotation_quat = scene.objects[0].rotation_quaternion
     
-    #bpy.ops.object.mode_set(mode='POSE')
+    ob = bpy.data.objects[bpy.context.scene.arma]
+    pbone = ob.pose.bones["Head"]
+    
+    last_rotation_quat = pbone.rotation_quaternion
     
     while(streaming):
-        data, addr = serverSock.recvfrom(BUFFER_SIZE)
-        data = json.loads(data.decode('utf-8'))
-        
-        w = float(data["qW"])
-        x = float(data["qX"])
-        y = float(data["qY"])
-        z = float(data["qZ"])
-
-        #print(type(bpy.context.scene.custom_props.enum_axis_x))
-        
-        if bpy.context.scene.custom_props.enum_axis_x == '0':
+        try:
+            data, addr = serverSock.recvfrom(BUFFER_SIZE)
+            data = json.loads(data.decode('utf-8'))
+            
+            w = float(data["qW"])
             x = float(data["qX"])
-        elif bpy.context.scene.custom_props.enum_axis_x == '1':
-            x = float(data["qY"])
-        else:
-            x = float(data["qZ"])
-            
-        if bpy.context.scene.custom_props.enum_axis_y == '0':
-            y = float(data["qX"])
-        elif bpy.context.scene.custom_props.enum_axis_y == '1':
             y = float(data["qY"])
-        else:
-            y = float(data["qZ"])
-            
-        if bpy.context.scene.custom_props.enum_axis_z == '0':
-            z = float(data["qX"])
-        elif bpy.context.scene.custom_props.enum_axis_z == '1':
-            z = float(data["qY"])
-        else:
             z = float(data["qZ"])
-        
-
-
-        if bpy.context.scene.custom_props.axis_x_invert == True:
-            x = x * -1
-            print('Inversion signal for X Axis applied')
-        
-        if bpy.context.scene.custom_props.axis_y_invert == True:
-            y = y * -1
-            print('Inversion signal for X Axis applied')
-           
-        if bpy.context.scene.custom_props.axis_z_invert == True:
-            z = z * -1
-            print('Inversion signal for X Axis applied')
+    
+            #print(type(bpy.context.scene.custom_props.enum_axis_x))
+            
+            if bpy.context.scene.custom_props.enum_axis_x == '0':
+                x = float(data["qX"])
+            elif bpy.context.scene.custom_props.enum_axis_x == '1':
+                x = float(data["qY"])
+            else:
+                x = float(data["qZ"])
+                
+            if bpy.context.scene.custom_props.enum_axis_y == '0':
+                y = float(data["qX"])
+            elif bpy.context.scene.custom_props.enum_axis_y == '1':
+                y = float(data["qY"])
+            else:
+                y = float(data["qZ"])
+                
+            if bpy.context.scene.custom_props.enum_axis_z == '0':
+                z = float(data["qX"])
+            elif bpy.context.scene.custom_props.enum_axis_z == '1':
+                z = float(data["qY"])
+            else:
+                z = float(data["qZ"])
+            
+    
+    
+            if bpy.context.scene.custom_props.axis_x_invert == True:
+                x = x * -1
+                print('Inversion signal for X Axis applied')
+            
+            if bpy.context.scene.custom_props.axis_y_invert == True:
+                y = y * -1
+                print('Inversion signal for X Axis applied')
+            
+            if bpy.context.scene.custom_props.axis_z_invert == True:
+                z = z * -1
+                print('Inversion signal for X Axis applied')
+                
+                
+                
+                
+            if bpy.context.scene.custom_props.axis_x_lock == True and bpy.context.scene.custom_props.axis_y_lock == True and bpy.context.scene.custom_props.axis_z_lock == True:
+                w = last_rotation_quat[0]
+                print('Lock signal for W Axis applied')        
+            
+            if bpy.context.scene.custom_props.axis_x_lock == True:
+                x = last_rotation_quat[1]
+                print('Lock signal for X Axis applied')
+            
+            if bpy.context.scene.custom_props.axis_y_lock == True:
+                y = last_rotation_quat[2]
+                print('Lock signal for Y Axis applied')
+            
+            if bpy.context.scene.custom_props.axis_z_lock == True:
+                z = last_rotation_quat[3]
+                print('Lock signal for Z Axis applied')
+                
+            if bpy.context.scene.custom_props.axis_x_lock == True and bpy.context.scene.custom_props.axis_y_lock == True and bpy.context.scene.custom_props.axis_z_lock == True:
+                w = last_rotation_quat[0]
+                print('Lock signal for W Axis applied')
             
             
+            rotation_quat = (w, x, y, z)
+            last_rotation_quat = rotation_quat
+    
+            #bpy.ops.transform.rotate(value=float(z), orient_axis='Z')
+    
+            #scene['RotationQuat'] = rotation_quat
+            #bpy.context.scene.objects[bpy.context.scene.arma].select_get()
+            #bpy.scene.objects[0].rotation_mode = 'QUATERNION'
+            #bpy.scene.objects[0].rotation_quaternion  = rotation_quat
             
-            
-        if bpy.context.scene.custom_props.axis_x_lock == True and bpy.context.scene.custom_props.axis_y_lock == True and bpy.context.scene.custom_props.axis_z_lock == True:
-            w = last_rotation_quat[0]
-            print('Lock signal for W Axis applied')        
-        
-        if bpy.context.scene.custom_props.axis_x_lock == True:
-            x = last_rotation_quat[1]
-            print('Lock signal for X Axis applied')
-        
-        if bpy.context.scene.custom_props.axis_y_lock == True:
-            y = last_rotation_quat[2]
-            print('Lock signal for Y Axis applied')
-           
-        if bpy.context.scene.custom_props.axis_z_lock == True:
-            z = last_rotation_quat[3]
-            print('Lock signal for Z Axis applied')
-            
-        if bpy.context.scene.custom_props.axis_x_lock == True and bpy.context.scene.custom_props.axis_y_lock == True and bpy.context.scene.custom_props.axis_z_lock == True:
-            w = last_rotation_quat[0]
-            print('Lock signal for W Axis applied')
-        
-        
-        rotation_quat = (w, x, y, z)
-        last_rotation_quat = rotation_quat
-
-        #bpy.ops.transform.rotate(value=float(z), orient_axis='Z')
-
-        #scene['RotationQuat'] = rotation_quat
-        #bpy.context.scene.objects[bpy.context.scene.arma].select_get()
-        #bpy.scene.objects[0].rotation_mode = 'QUATERNION'
-        #bpy.scene.objects[0].rotation_quaternion  = rotation_quat
-        
-        ob = bpy.data.objects[bpy.context.scene.arma]
-        
-        #if bpy.context.object.mode != 'POSE':
-        #    bpy.ops.object.mode_set(mode='POSE')
-        
-        pbone = ob.pose.bones["Upper Arm.L"]
-        # Set rotation mode to Euler XYZ, easier to understand
-        # than default quaternions
-        # select axis in ['X','Y','Z']  <--bone local
-
-        pbone.rotation_mode = 'QUATERNION'
-        
-        if calibrate:
+            # Set rotation mode to Euler XYZ, easier to understand
+            # than default quaternions
+            # select axis in ['X','Y','Z']  <--bone local
+            pbone.rotation_mode = 'QUATERNION'
             print(int(bpy.context.scene.custom_props.calibration_samples))
             print(calibration_count)
-            if calibration_count < int(bpy.context.scene.custom_props.calibration_samples):
-                print('calibrating...')
+            q = Quaternion('GyroSensor00', qX=x, qY=y, qZ=z, qW=w)
+            sensor_calibration.push(q)
             
-                q = Quaternion('gyroSensor01', qX=x, qY=y, qZ=z, qW=w)
-                sensor_calibration.push(q)
+            gyroQuaternionInverse = q.inverse()
+    
+            gyroQuaternionCalibrationResult = sensor_calibration.get_calib_result('GyroSensor00')
+    
+            if gyroQuaternionCalibrationResult != None:
+                gyroQuaternion = quat_multiply(gyroQuaternionInverse, gyroQuaternionCalibrationResult)
+    
+                MESSAGE = gyroQuaternion.toJSON().encode()
+                serverSock.sendto(MESSAGE, ("192.168.1.47", 8855))
+    
+                quat = (gyroQuaternion.qW, gyroQuaternion.qX, gyroQuaternion.qY, gyroQuaternion.qZ)
                 
-                gyroQuaternionInverse = q.inverse()
-
-                gyroQuaternionCalibrationResult = sensor_calibration.get_calib_result('gyroSensor01')
-
-                if gyroQuaternionCalibrationResult != None:
-                    gyroQuaternion = quat_multiply(gyroQuaternionInverse, gyroQuaternionCalibrationResult)
-
-                    MESSAGE = gyroQuaternion.toJSON().encode()
-                    serverSock.sendto(MESSAGE, ("192.168.1.47", 7755))
-
-                    quat = (gyroQuaternion.qW, gyroQuaternion.qX, gyroQuaternion.qY, gyroQuaternion.qZ)
-                    
-                    pbone.rotation_quaternion = quat
-                    calibration_count = calibration_count + 1
-                    print('yes?')
-                else:
-                    print('result none')
-                    calibration_count = calibration_count + 1
+                pbone.rotation_quaternion = quat
+                calibration_count = calibration_count + 1
+                print('yes?')
             else:
-                print('calibration done.')
-                calibrate = False
-                calibration_count = 0
-        else:
-            print('nani2?')
-            pbone.rotation_quaternion = rotation_quat
-        #bpy.ops.object.mode_set(mode='OBJECT')
-        #insert a keyframe
-        pbone.keyframe_insert(data_path="rotation_quaternion" ,frame=anim_frame)
-        #scene.objects[0].transform.rotate(value=float(z), orient_axis='Z')
-        
-        anim_frame += 1
-        
-        time.sleep(0.001) #update rate in seconds
+                print('result none')
+                calibration_count = calibration_count + 1
             
+            #insert a keyframe
+            pbone.keyframe_insert(data_path="rotation_quaternion", frame=anim_frame)
+            #scene.objects[0].transform.rotate(value=float(z), orient_axis='Z')
+            
+            anim_frame += 1
+            
+            time.sleep(0.001) #update rate in seconds
+        except:
+            print("meep")
 
 thread = None
 
@@ -380,7 +365,9 @@ class CalibrateOperator(Operator):
     
     def execute(self, context):
         global calibrate
-        calibrate = True
+        global sensor_calibration
+        #calibrate = True
+        sensor_calibration = SensorCalibration()
         self.report({'PROPERTY'}, "Calibration has started, please wait.")
         return {'FINISHED'}
 
