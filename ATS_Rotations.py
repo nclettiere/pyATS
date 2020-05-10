@@ -66,5 +66,4 @@ class SensorCalibration:
             self.calibration_dictionaty.update({quat.sensorName : Quaternion(quat.sensorName, quat.qX, quat.qY, quat.qZ, quat.qW)})
 
     def get_calib_result(self, sensor_name : str):
-        print('='*20)
         return self.calibration_dictionaty[next(f for f in self.calibration_dictionaty if f == sensor_name)]

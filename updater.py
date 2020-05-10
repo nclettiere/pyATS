@@ -13,7 +13,9 @@ import binascii
 calibrate = False
 streaming = False
 calib_started = False
-anim_frame = 1
+animating = False
+anim_frame = 0
+last_anim_frame = 0
 calibration_count = 0
 calibration_samples = 100
 
@@ -44,7 +46,6 @@ def lock_z_changed(self, context):
     # self = current scene in an EnumProperty callback!
     print('Z Stream lock setted to {}'.format(bool(context.scene.custom_props.axis_z_lock)))
     
-
  
 class MyProperties(PropertyGroup):
 
@@ -62,6 +63,32 @@ class MyProperties(PropertyGroup):
         default=100,
         min=100,
         max=1000
+    )
+
+    frame_start: IntProperty(
+        name="Animation Frame Start",
+        description = "Set animation frame start",
+        default=0,
+        min=0
+    )
+
+    frame_end: IntProperty(
+        name="Animation Frame End",
+        description = "Set animation frame end (0 for no end)",
+        default=0,
+        min=0
+    )
+
+    replace_current_keyframes: BoolProperty(
+        name = "Replace Keyframes",
+        description = "If set to true, all keyframes will be deleted",
+        default=True
+    )
+
+    start_in_last_keyframe: BoolProperty(
+        name = "Start in Last Keyframe",
+        description = "If set to true, the animation will start at the last keyframe.",
+        default=False,
     )
         
     enum_axis_x: EnumProperty(
@@ -184,6 +211,7 @@ def thread_update():
     global calib_started
     global sensor_calibration
     global anim_frame
+    global last_anim_frame
     global calibration_count
     global streaming
     
@@ -202,136 +230,143 @@ def thread_update():
     last_rotation_quat = pbone.rotation_quaternion
     
     while(streaming):
-        try:
-            data, addr = serverSock.recvfrom(BUFFER_SIZE)
-            data = json.loads(data.decode('utf-8'))
-            
-            w = float(data["qW"])
+        data, addr = serverSock.recvfrom(BUFFER_SIZE)
+        data = json.loads(data.decode('utf-8'))
+        
+        w = float(data["qW"])
+        x = float(data["qX"])
+        y = float(data["qY"])
+        z = float(data["qZ"])
+    
+        #print(type(bpy.context.scene.custom_props.enum_axis_x))
+        
+        if bpy.context.scene.custom_props.enum_axis_x == '0':
             x = float(data["qX"])
+        elif bpy.context.scene.custom_props.enum_axis_x == '1':
+            x = float(data["qY"])
+        else:
+            x = float(data["qZ"])
+            
+        if bpy.context.scene.custom_props.enum_axis_y == '0':
+            y = float(data["qX"])
+        elif bpy.context.scene.custom_props.enum_axis_y == '1':
             y = float(data["qY"])
+        else:
+            y = float(data["qZ"])
+            
+        if bpy.context.scene.custom_props.enum_axis_z == '0':
+            z = float(data["qX"])
+        elif bpy.context.scene.custom_props.enum_axis_z == '1':
+            z = float(data["qY"])
+        else:
             z = float(data["qZ"])
-    
-            #print(type(bpy.context.scene.custom_props.enum_axis_x))
-            
-            if bpy.context.scene.custom_props.enum_axis_x == '0':
-                x = float(data["qX"])
-            elif bpy.context.scene.custom_props.enum_axis_x == '1':
-                x = float(data["qY"])
-            else:
-                x = float(data["qZ"])
-                
-            if bpy.context.scene.custom_props.enum_axis_y == '0':
-                y = float(data["qX"])
-            elif bpy.context.scene.custom_props.enum_axis_y == '1':
-                y = float(data["qY"])
-            else:
-                y = float(data["qZ"])
-                
-            if bpy.context.scene.custom_props.enum_axis_z == '0':
-                z = float(data["qX"])
-            elif bpy.context.scene.custom_props.enum_axis_z == '1':
-                z = float(data["qY"])
-            else:
-                z = float(data["qZ"])
-            
+        
     
     
-            if bpy.context.scene.custom_props.axis_x_invert == True:
-                x = x * -1
-                print('Inversion signal for X Axis applied')
-            
-            if bpy.context.scene.custom_props.axis_y_invert == True:
-                y = y * -1
-                print('Inversion signal for X Axis applied')
-            
-            if bpy.context.scene.custom_props.axis_z_invert == True:
-                z = z * -1
-                print('Inversion signal for X Axis applied')
-                
-                
-                
-                
-            if bpy.context.scene.custom_props.axis_x_lock == True and bpy.context.scene.custom_props.axis_y_lock == True and bpy.context.scene.custom_props.axis_z_lock == True:
-                w = last_rotation_quat[0]
-                print('Lock signal for W Axis applied')        
-            
-            if bpy.context.scene.custom_props.axis_x_lock == True:
-                x = last_rotation_quat[1]
-                print('Lock signal for X Axis applied')
-            
-            if bpy.context.scene.custom_props.axis_y_lock == True:
-                y = last_rotation_quat[2]
-                print('Lock signal for Y Axis applied')
-            
-            if bpy.context.scene.custom_props.axis_z_lock == True:
-                z = last_rotation_quat[3]
-                print('Lock signal for Z Axis applied')
-                
-            if bpy.context.scene.custom_props.axis_x_lock == True and bpy.context.scene.custom_props.axis_y_lock == True and bpy.context.scene.custom_props.axis_z_lock == True:
-                w = last_rotation_quat[0]
-                print('Lock signal for W Axis applied')
+        if bpy.context.scene.custom_props.axis_x_invert == True:
+            x = x * -1
+            print('Inversion signal for X Axis applied')
+        
+        if bpy.context.scene.custom_props.axis_y_invert == True:
+            y = y * -1
+            print('Inversion signal for X Axis applied')
+        
+        if bpy.context.scene.custom_props.axis_z_invert == True:
+            z = z * -1
+            print('Inversion signal for X Axis applied')
             
             
-            rotation_quat = (w, x, y, z)
-            last_rotation_quat = rotation_quat
+            
+            
+        if bpy.context.scene.custom_props.axis_x_lock == True and bpy.context.scene.custom_props.axis_y_lock == True and bpy.context.scene.custom_props.axis_z_lock == True:
+            w = last_rotation_quat[0]
+            print('Lock signal for W Axis applied')        
+        
+        if bpy.context.scene.custom_props.axis_x_lock == True:
+            x = last_rotation_quat[1]
+            print('Lock signal for X Axis applied')
+        
+        if bpy.context.scene.custom_props.axis_y_lock == True:
+            y = last_rotation_quat[2]
+            print('Lock signal for Y Axis applied')
+        
+        if bpy.context.scene.custom_props.axis_z_lock == True:
+            z = last_rotation_quat[3]
+            print('Lock signal for Z Axis applied')
+            
+        if bpy.context.scene.custom_props.axis_x_lock == True and bpy.context.scene.custom_props.axis_y_lock == True and bpy.context.scene.custom_props.axis_z_lock == True:
+            w = last_rotation_quat[0]
+            print('Lock signal for W Axis applied')
+        
+        
+        rotation_quat = (w, x, y, z)
+        last_rotation_quat = rotation_quat
     
-            #bpy.ops.transform.rotate(value=float(z), orient_axis='Z')
+        #bpy.ops.transform.rotate(value=float(z), orient_axis='Z')
     
-            #scene['RotationQuat'] = rotation_quat
-            #bpy.context.scene.objects[bpy.context.scene.arma].select_get()
-            #bpy.scene.objects[0].rotation_mode = 'QUATERNION'
-            #bpy.scene.objects[0].rotation_quaternion  = rotation_quat
-            
-            # Set rotation mode to Euler XYZ, easier to understand
-            # than default quaternions
-            # select axis in ['X','Y','Z']  <--bone local
+        #scene['RotationQuat'] = rotation_quat
+        #bpy.context.scene.objects[bpy.context.scene.arma].select_get()
+        #bpy.scene.objects[0].rotation_mode = 'QUATERNION'
+        #bpy.scene.objects[0].rotation_quaternion  = rotation_quat
+        
+        # Set rotation mode to Euler XYZ, easier to understand
+        # than default quaternions
+        # select axis in ['X','Y','Z']  <--bone local
+
+        try:
             pbone.rotation_mode = 'QUATERNION'
-            print(int(bpy.context.scene.custom_props.calibration_samples))
-            print(calibration_count)
+
             q = Quaternion('GyroSensor00', qX=x, qY=y, qZ=z, qW=w)
             sensor_calibration.push(q)
-            
+
             gyroQuaternionInverse = q.inverse()
-    
+
             gyroQuaternionCalibrationResult = sensor_calibration.get_calib_result('GyroSensor00')
-    
+
             if gyroQuaternionCalibrationResult != None:
                 gyroQuaternion = quat_multiply(gyroQuaternionInverse, gyroQuaternionCalibrationResult)
-    
+
                 MESSAGE = gyroQuaternion.toJSON().encode()
                 serverSock.sendto(MESSAGE, ("192.168.1.47", 8855))
-    
+
                 quat = (gyroQuaternion.qW, gyroQuaternion.qX, gyroQuaternion.qY, gyroQuaternion.qZ)
-                
+
                 pbone.rotation_quaternion = quat
-                calibration_count = calibration_count + 1
-                print('yes?')
-            else:
-                print('result none')
-                calibration_count = calibration_count + 1
-            
-            #insert a keyframe
-            pbone.keyframe_insert(data_path="rotation_quaternion", frame=anim_frame)
-            #scene.objects[0].transform.rotate(value=float(z), orient_axis='Z')
-            
-            anim_frame += 1
-            
-            time.sleep(0.001) #update rate in seconds
-        except:
-            print("meep")
+
+            if animating:
+                #insert a keyframe
+                pbone.keyframe_insert(data_path="rotation_quaternion", frame=anim_frame)
+                last_anim_frame = anim_frame
+                anim_frame += 1
+                if bpy.context.scene.custom_props.start_in_last_keyframe:
+                    bpy.context.scene.custom_props.frame_start = anim_frame
+        except Exception as e: # work on python 3.x
+            print('Failed animate: '+ str(e))
+
+        time.sleep(0.001) #update rate in seconds
 
 thread = None
 
 
 class SimpleOperator(Operator):
-    """Print object name in Console"""
     bl_idname = "object.simple_operator"
     bl_label = "Simple Object Operator"
     
     @classmethod
     def poll(cls, context):
         global calibrate
-        return not calibrate
+        global animating
+        global streaming
+
+        if streaming and bpy.context.screen.is_animation_playing:
+            animating = False
+            thread.kill() 
+            thread.join() 
+            if not thread.isAlive(): 
+                print('animation playing, thread killed') 
+                anim_frame = 1
+
+        return not calibrate and not animating and not bpy.context.screen.is_animation_playing
         
     def execute(self, context):
         global streaming
@@ -370,6 +405,36 @@ class CalibrateOperator(Operator):
         sensor_calibration = SensorCalibration()
         self.report({'PROPERTY'}, "Calibration has started, please wait.")
         return {'FINISHED'}
+
+
+class AnimateOperator(Operator):
+    bl_idname = "object.animate"
+    bl_label = "Animate Model"
+    
+    @classmethod
+    def poll(cls, context):
+        global calibrate
+        global streaming
+        return not calibrate and streaming
+    
+    def execute(self, context):
+        global animating
+        global anim_frame
+
+        if not bpy.context.scene.custom_props.start_in_last_keyframe:
+            anim_frame = 0
+
+        try:
+            if not animating and bpy.context.scene.custom_props.replace_current_keyframes:
+                bpy.context.active_object.animation_data_clear()
+        except Exception as e:
+            print('Failed: '+ str(e))
+
+        animating = not animating
+
+        #self.report({'INFO'}, "Calibration has started, please wait.")
+        return {'FINISHED'}
+
 
 class OBPanel(bpy.types.Panel):
     bl_idname = "object.ats_panel"
@@ -424,12 +489,18 @@ class OBPanel(bpy.types.Panel):
             text_lock_z = "Unlocked"
             
         view = context.space_data
-        overlay = view.overlay
          
         if calibrate:
            layout.enabled = False 
         else:
             layout.enabled = True 
+
+        if animating:
+            icon_anim = "PAUSE"
+            text_anim = "Stop Animation"
+        else:
+            icon_anim = "PLAY"
+            text_anim = "Start Animation"
          
         box = layout.box()
         box.label(text="General")
@@ -437,6 +508,7 @@ class OBPanel(bpy.types.Panel):
         col.operator(SimpleOperator.bl_idname, text=text, icon=icon)
         col.prop(customprops, "calibration_samples", text="Calib. Samples")
         col.operator(CalibrateOperator.bl_idname, text="Calibrate", icon="SNAP_FACE_CENTER")
+        col.separator()
         col.prop(scene, "arma", icon="ARMATURE_DATA", text="Rig")
         
         box = layout.box()
@@ -460,8 +532,18 @@ class OBPanel(bpy.types.Panel):
         box = layout.box()
         col = box.column()
         col.label(text="Animation")
+        col.operator(AnimateOperator.bl_idname, text=text_anim, icon=icon_anim)
+        
+        col.separator()
+
         row = col.row(align=True)
-        col.operator(SimpleOperator.bl_idname, text="Start Animation", icon=icon)
+        row.prop(customprops, "frame_start", text="Start", expand=False, slider=False)
+        row.prop(customprops, "frame_end", text="End", expand=False, slider=False)
+        
+        col.separator()
+
+        col.prop(customprops, "start_in_last_keyframe", expand=True)
+        col.prop(customprops, "replace_current_keyframes", expand=False)
 
 def arma_items(self, context):
     obs = []
@@ -487,6 +569,7 @@ classes = (
     MyProperties,
     SimpleOperator,
     CalibrateOperator,
+    AnimateOperator,
     OBPanel
 )
 
