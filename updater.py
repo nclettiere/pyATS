@@ -1,5 +1,7 @@
+from ATS_Rotations import *
 from ATS_Rotations import Quaternion
-from ATS_Rotations import GyroQuaternionCalibrationModel
+from ATS_Rotations import QuaternionCalibrationModel
+from ATS_Rotations import SensorCalibration
 from ATS_Rotations import SensorCalibration
 import bpy
 from bpy.types import (Panel, Operator, PropertyGroup)
@@ -14,6 +16,7 @@ calibrate = False
 streaming = False
 calib_started = False
 animating = False
+last_quat = None
 anim_frame = 0
 last_anim_frame = 0
 calibration_count = 0
@@ -205,6 +208,7 @@ def quat_multiply(q1 : Quaternion, q2 : Quaternion):
     qW = q1.qW * q2.qW - q1.qX * q2.qX - q1.qY * q2.qY - q1.qZ * q2.qZ
 
     return Quaternion(q1.sensorName, qX, qY, qZ, qW)
+    
 
 def thread_update():
     global calibrate
@@ -214,6 +218,7 @@ def thread_update():
     global last_anim_frame
     global calibration_count
     global streaming
+    global last_quat
     
     UDP_IP_ADDRESS = "0.0.0.0"
     UDP_PORT_NO = 7755
@@ -301,47 +306,42 @@ def thread_update():
         
         rotation_quat = (w, x, y, z)
         last_rotation_quat = rotation_quat
-    
-        #bpy.ops.transform.rotate(value=float(z), orient_axis='Z')
-    
-        #scene['RotationQuat'] = rotation_quat
-        #bpy.context.scene.objects[bpy.context.scene.arma].select_get()
-        #bpy.scene.objects[0].rotation_mode = 'QUATERNION'
-        #bpy.scene.objects[0].rotation_quaternion  = rotation_quat
-        
-        # Set rotation mode to Euler XYZ, easier to understand
-        # than default quaternions
-        # select axis in ['X','Y','Z']  <--bone local
+       
+        pbone.rotation_mode = 'QUATERNION'
 
-        try:
-            pbone.rotation_mode = 'QUATERNION'
+        q = Quaternion('GyroSensor00', qX=x, qY=y, qZ=z, qW=w)
+        sensor_calibration.push(q)
 
-            q = Quaternion('GyroSensor00', qX=x, qY=y, qZ=z, qW=w)
-            sensor_calibration.push(q)
+        gyroQuaternionInverse = q.inverse()
 
-            gyroQuaternionInverse = q.inverse()
+        gyroQuaternionCalibrationResult = sensor_calibration.get_calib_result('GyroSensor00')
 
-            gyroQuaternionCalibrationResult = sensor_calibration.get_calib_result('GyroSensor00')
+        if gyroQuaternionCalibrationResult != None:
+            gyroQuaternion = quat_multiply(gyroQuaternionInverse, gyroQuaternionCalibrationResult)
 
-            if gyroQuaternionCalibrationResult != None:
-                gyroQuaternion = quat_multiply(gyroQuaternionInverse, gyroQuaternionCalibrationResult)
+            MESSAGE = gyroQuaternion.toJSON().encode()
+            serverSock.sendto(MESSAGE, ("192.168.1.47", 8855))
 
-                MESSAGE = gyroQuaternion.toJSON().encode()
-                serverSock.sendto(MESSAGE, ("192.168.1.47", 8855))
-
-                quat = (gyroQuaternion.qW, gyroQuaternion.qX, gyroQuaternion.qY, gyroQuaternion.qZ)
-
+            quat = (gyroQuaternion.qW, gyroQuaternion.qX, gyroQuaternion.qY, gyroQuaternion.qZ)
+            
+            # interpolate with last quaternion
+            if last_quat != None:
+                new_quat = interpolate_angles(last_quat, gyroQuaternion, amount=0.5)
+                
+                quat = (new_quat.qW, new_quat.qX, new_quat.qY, new_quat.qZ)
+                
                 pbone.rotation_quaternion = quat
-
-            if animating:
-                #insert a keyframe
-                pbone.keyframe_insert(data_path="rotation_quaternion", frame=anim_frame)
-                last_anim_frame = anim_frame
-                anim_frame += 1
-                if bpy.context.scene.custom_props.start_in_last_keyframe:
-                    bpy.context.scene.custom_props.frame_start = anim_frame
-        except Exception as e: # work on python 3.x
-            print('Failed animate: '+ str(e))
+            else:
+                pbone.rotation_quaternion = quat
+                
+            last_quat = gyroQuaternion
+        if animating:
+            #insert a keyframe
+            pbone.keyframe_insert(data_path="rotation_quaternion", frame=anim_frame)
+            last_anim_frame = anim_frame
+            anim_frame += 1
+            if bpy.context.scene.custom_props.start_in_last_keyframe:
+                bpy.context.scene.custom_props.frame_start = anim_frame
 
         time.sleep(0.001) #update rate in seconds
 
