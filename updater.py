@@ -2,7 +2,7 @@ from ATS_Rotations import *
 from ATS_Rotations import Quaternion
 from ATS_Rotations import QuaternionCalibrationModel
 from ATS_Rotations import SensorCalibration
-from ATS_Rotations import SensorCalibration
+from preset_manager import PresetManager
 import bpy
 from bpy.types import (Panel, Operator, PropertyGroup)
 from bpy.props import (FloatVectorProperty, IntProperty, EnumProperty, BoolProperty, PointerProperty)
@@ -21,6 +21,9 @@ anim_frame = 0
 last_anim_frame = 0
 calibration_count = 0
 calibration_samples = 100
+
+PRESETS = PresetManager()
+preset_dict = PRESETS.load_user_presets()
 
 sensor_calibration = SensorCalibration()
 
@@ -48,8 +51,65 @@ def lock_y_changed(self, context):
 def lock_z_changed(self, context):
     # self = current scene in an EnumProperty callback!
     print('Z Stream lock setted to {}'.format(bool(context.scene.custom_props.axis_z_lock)))
+
+## TODO : Multisensor support
+def preset_changed(self, context):
+    global PRESETS
+    preset_name = str(context.scene.custom_props.enum_presets)
+
+    X = "0"
+    Y = "1"
+    Z = "2"
+
+    if preset_name != "None":
+        preset = PRESETS.get_preset_name(str(context.scene.custom_props.enum_presets))
+
+        print(preset)
+
+        if preset['X'] == 'X':
+            X = "0"
+        elif preset["X"] == 'Y':
+            X = "1"
+        elif preset["X"] == 'Z':
+            X = "2"
+
+        if preset["Y"]["is"] == "X":
+            Y = "0"
+        elif preset["Y"]["is"] == "Y":
+            Y = "1"
+        elif preset["Y"]["is"] == "Z":
+            Y = "2"
+
+        if preset["Z"]["is"] == "X":
+            Z = "0"
+        elif preset["Z"]["is"] == "Y":
+            Z = "1"
+        elif preset["Z"]["is"] == "Z":
+            Z = "2"
+
+        bpy.context.scene.custom_props.enum_axis_x = X
+        bpy.context.scene.custom_props.enum_axis_y = Y
+        bpy.context.scene.custom_props.enum_axis_z = Z
     
- 
+        bpy.context.scene.custom_props.axis_x_invert = bool(preset["X"]["inverted"])
+        bpy.context.scene.custom_props.axis_y_invert = bool(preset["Y"]["inverted"])
+        bpy.context.scene.custom_props.axis_z_invert = bool(preset["Z"]["inverted"])
+            
+        bpy.context.scene.custom_props.axis_x_lock = bool(preset["X"]["locked"])
+        bpy.context.scene.custom_props.axis_y_lock = bool(preset["Y"]["locked"])
+        bpy.context.scene.custom_props.axis_z_lock = bool(preset["Z"]["locked"])
+
+    else:
+        bpy.context.scene.custom_props.enum_axis_x = X
+        bpy.context.scene.custom_props.enum_axis_y = Y
+        bpy.context.scene.custom_props.enum_axis_z = Z
+        bpy.context.scene.custom_props.axis_x_invert = False
+        bpy.context.scene.custom_props.axis_y_invert = False
+        bpy.context.scene.custom_props.axis_z_invert = False
+        bpy.context.scene.custom_props.axis_x_lock = False
+        bpy.context.scene.custom_props.axis_y_lock = False
+        bpy.context.scene.custom_props.axis_z_lock = False
+
 class MyProperties(PropertyGroup):
 
     RotationQuat: FloatVectorProperty(
@@ -168,6 +228,14 @@ class MyProperties(PropertyGroup):
         description = "Invert Z Axis",
         default=False
     )
+
+    enum_presets: EnumProperty(
+        name = "Axis Presets",
+        description = "Change Axis Preset",
+        items = PRESETS.get_enums(),
+        default="None",
+        update=preset_changed
+    )
  
 
 class thread_with_trace(threading.Thread): 
@@ -219,6 +287,7 @@ def thread_update():
     global calibration_count
     global streaming
     global last_quat
+    global animating
     
     UDP_IP_ADDRESS = "0.0.0.0"
     UDP_PORT_NO = 7755
@@ -335,13 +404,22 @@ def thread_update():
                 pbone.rotation_quaternion = quat
                 
             last_quat = gyroQuaternion
-        if animating:
+        if animating and bpy.context.scene.custom_props.frame_end == 0:
             #insert a keyframe
             pbone.keyframe_insert(data_path="rotation_quaternion", frame=anim_frame)
             last_anim_frame = anim_frame
             anim_frame += 1
             if bpy.context.scene.custom_props.start_in_last_keyframe:
                 bpy.context.scene.custom_props.frame_start = anim_frame
+        elif animating and anim_frame <= bpy.context.scene.custom_props.frame_end:
+            #insert a keyframe
+            pbone.keyframe_insert(data_path="rotation_quaternion", frame=anim_frame)
+            last_anim_frame = anim_frame
+            anim_frame += 1
+            if bpy.context.scene.custom_props.start_in_last_keyframe:
+                bpy.context.scene.custom_props.frame_start = anim_frame
+        else:
+            animating = False
 
         time.sleep(0.001) #update rate in seconds
 
@@ -422,7 +500,7 @@ class AnimateOperator(Operator):
         global anim_frame
 
         if not bpy.context.scene.custom_props.start_in_last_keyframe:
-            anim_frame = 0
+            anim_frame =  bpy.context.scene.custom_props.frame_start
 
         try:
             if not animating and bpy.context.scene.custom_props.replace_current_keyframes:
@@ -433,6 +511,31 @@ class AnimateOperator(Operator):
         animating = not animating
 
         #self.report({'INFO'}, "Calibration has started, please wait.")
+        return {'FINISHED'}
+
+
+class SavePreset(Operator):
+    bl_idname = "object.save_preset"
+    bl_label = "Save Current Preset For The Selected Bone"
+    
+    @classmethod
+    def poll(cls, context):
+        global calibrate
+        return not calibrate
+    
+    def execute(self, context):
+        return {'FINISHED'}
+
+class RemovePreset(Operator):
+    bl_idname = "object.remove_preset"
+    bl_label = "Remove Current Preset"
+    
+    @classmethod
+    def poll(cls, context):
+        global calibrate
+        return not calibrate
+    
+    def execute(self, context):
         return {'FINISHED'}
 
 
@@ -528,6 +631,14 @@ class OBPanel(bpy.types.Panel):
         row.prop(customprops, "enum_axis_z", text="Z is")
         row.prop(customprops, "axis_z_invert", text="", toggle=1, icon='NORMALS_VERTEX')
         row.prop(customprops, "axis_z_lock", text=text_lock_z, icon=icon_lock_z)
+
+        col.separator()
+
+        row = col.row(align=True)
+        row.prop(customprops, "enum_presets")
+        row.operator(SavePreset.bl_idname, text="", icon='FILE')
+        row.operator(RemovePreset.bl_idname, text="", icon='CANCEL')
+        
         
         box = layout.box()
         col = box.column()
@@ -570,6 +681,8 @@ classes = (
     SimpleOperator,
     CalibrateOperator,
     AnimateOperator,
+    SavePreset,
+    RemovePreset,
     OBPanel
 )
 

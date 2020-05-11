@@ -47,7 +47,7 @@ def Fmod(X : float, Y : float):
        
 
 def normalize_axis(angle : float):
-    angle = self.Fmod(angle, 360)
+    angle = Fmod(angle, 360)
     if (angle < 0.0):
         angle += 360.0
     if (angle > 180.0):
