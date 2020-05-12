@@ -10,7 +10,6 @@ import sys, threading, time
 import math
 import socket
 import json
-import binascii
 
 calibrate = False
 streaming = False
@@ -23,81 +22,42 @@ calibration_count = 0
 calibration_samples = 100
 
 PRESETS = PresetManager()
-preset_dict = PRESETS.load_user_presets()
+
+preset_dict = PRESETS.load_user_presets() or None
 
 sensor_calibration = SensorCalibration()
 
-
-def update_x_enum(self, context):
-    # self = current scene in an EnumProperty callback!
-    print('X setted to {}'.format(context.scene.custom_props.enum_axis_x))
-    
-def update_y_enum(self, context):
-    # self = current scene in an EnumProperty callback!
-    print('Y setted to {}'.format(context.scene.custom_props.enum_axis_y))
-    
-def update_z_enum(self, context):
-    # self = current scene in an EnumProperty callback!
-    print('Z setted to {}'.format(context.scene.custom_props.enum_axis_z))
-    
-def lock_x_changed(self, context):
-    # self = current scene in an EnumProperty callback!
-    print('X Stream lock setted to {}'.format(bool(context.scene.custom_props.axis_x_lock)))
-    
-def lock_y_changed(self, context):
-    # self = current scene in an EnumProperty callback!
-    print('Y Stream lock setted to {}'.format(bool(context.scene.custom_props.axis_y_lock)))
-    
-def lock_z_changed(self, context):
-    # self = current scene in an EnumProperty callback!
-    print('Z Stream lock setted to {}'.format(bool(context.scene.custom_props.axis_z_lock)))
+def get_enums(self, context):
+    global PRESETS
+    return PRESETS.get_enums()
 
 ## TODO : Multisensor support
 def preset_changed(self, context):
     global PRESETS
-    preset_name = str(context.scene.custom_props.enum_presets)
+    selected_preset = str(context.scene.custom_props.enum_presets)
 
-    X = "0"
-    Y = "1"
-    Z = "2"
+    X = "X"
+    Y = "Y"
+    Z = "Z"
 
-    if preset_name != "None":
-        preset = PRESETS.get_preset_name(str(context.scene.custom_props.enum_presets))
+    if selected_preset != "None":
+        preset = PRESETS.get_preset_name(selected_preset)
 
-        print(preset)
-
-        if preset['X'] == 'X':
-            X = "0"
-        elif preset["X"] == 'Y':
-            X = "1"
-        elif preset["X"] == 'Z':
-            X = "2"
-
-        if preset["Y"]["is"] == "X":
-            Y = "0"
-        elif preset["Y"]["is"] == "Y":
-            Y = "1"
-        elif preset["Y"]["is"] == "Z":
-            Y = "2"
-
-        if preset["Z"]["is"] == "X":
-            Z = "0"
-        elif preset["Z"]["is"] == "Y":
-            Z = "1"
-        elif preset["Z"]["is"] == "Z":
-            Z = "2"
+        X = str(preset['X'])
+        Y = str(preset['Y'])
+        Z = str(preset['Z'])
 
         bpy.context.scene.custom_props.enum_axis_x = X
         bpy.context.scene.custom_props.enum_axis_y = Y
         bpy.context.scene.custom_props.enum_axis_z = Z
     
-        bpy.context.scene.custom_props.axis_x_invert = bool(preset["X"]["inverted"])
-        bpy.context.scene.custom_props.axis_y_invert = bool(preset["Y"]["inverted"])
-        bpy.context.scene.custom_props.axis_z_invert = bool(preset["Z"]["inverted"])
+        bpy.context.scene.custom_props.axis_x_invert = bool(preset["Xinverted"])
+        bpy.context.scene.custom_props.axis_y_invert = bool(preset["Yinverted"])
+        bpy.context.scene.custom_props.axis_z_invert = bool(preset["Zinverted"])
             
-        bpy.context.scene.custom_props.axis_x_lock = bool(preset["X"]["locked"])
-        bpy.context.scene.custom_props.axis_y_lock = bool(preset["Y"]["locked"])
-        bpy.context.scene.custom_props.axis_z_lock = bool(preset["Z"]["locked"])
+        bpy.context.scene.custom_props.axis_x_lock = bool(preset["Xlocked"])
+        bpy.context.scene.custom_props.axis_y_lock = bool(preset["Ylocked"])
+        bpy.context.scene.custom_props.axis_z_lock = bool(preset["Zlocked"])
 
     else:
         bpy.context.scene.custom_props.enum_axis_x = X
@@ -111,7 +71,6 @@ def preset_changed(self, context):
         bpy.context.scene.custom_props.axis_z_lock = False
 
 class MyProperties(PropertyGroup):
-
     RotationQuat: FloatVectorProperty(
         name = "RotationQuat",
         default=(0.0, 0.0, 0.0),
@@ -158,57 +117,51 @@ class MyProperties(PropertyGroup):
         name = "X Axis Tweaks",
         description = "Change Axis Direction",
         items = [
-            ("0", "X", "Set default"),
-            ("1", "Y", "Switch X to Y Axis"),     
-            ("2", "Z", "Switch X to Z Axis"),                 
+            ("X", "X", "Set default"),
+            ("Y", "Y", "Switch X to Y Axis"),     
+            ("Z", "Z", "Switch X to Z Axis"),                 
         ],
-        default="0",
-        update=update_x_enum
+        default="X"
     )
 
     enum_axis_y: EnumProperty(
         name = "Y Axis Tweaks",
         description = "Change Axis Direction",
         items = [
-            ("0", "X", "Switch Y to Z Axis"),
-            ("1", "Y", "Set default"),     
-            ("2", "Z", "Switch Y to Z Axis"),                 
+            ("X", "X", "Switch Y to Z Axis"),
+            ("Y", "Y", "Set default"),     
+            ("Z", "Z", "Switch Y to Z Axis"),                 
         ],
-        default="1",
-        update=update_y_enum
+        default="Y"
     )
 
     enum_axis_z: EnumProperty(
         name = "Z Axis Tweaks",
         description = "Change Axis Direction",
         items = [
-            ("0", "X", "Switch Z to X Axis"),
-            ("1", "Y", "Switch Z to Y Axis"),     
-            ("2", "Z", "Set default"),                 
+            ("X", "X", "Switch Z to X Axis"),
+            ("Y", "Y", "Switch Z to Y Axis"),     
+            ("Z", "Z", "Set default"),                 
         ],
-        default="2",
-        update=update_z_enum
+        default="Z"
     )
     
     axis_x_lock: BoolProperty(
         name = "Lock/Unlock X Axis",
         description = "Lock/Unlock X Axis",
-        default=False,
-        update=lock_x_changed
+        default=False
     )
     
     axis_y_lock: BoolProperty(
         name = "Lock/Unlock Y Axis",
         description = "Lock/Unlock Y Axis",
-        default=False,
-        update=lock_y_changed
+        default=False
     )
   
     axis_z_lock: BoolProperty(
         name = "Lock/Unlock Z Axis",
         description = "Lock/Unlock Z Axis",
-        default=False,
-        update=lock_z_changed
+        default=False
     )
    
     axis_x_invert: BoolProperty(
@@ -232,8 +185,8 @@ class MyProperties(PropertyGroup):
     enum_presets: EnumProperty(
         name = "Axis Presets",
         description = "Change Axis Preset",
-        items = PRESETS.get_enums(),
-        default="None",
+        items = get_enums,
+        default=None,
         update=preset_changed
     )
  
@@ -314,23 +267,23 @@ def thread_update():
     
         #print(type(bpy.context.scene.custom_props.enum_axis_x))
         
-        if bpy.context.scene.custom_props.enum_axis_x == '0':
+        if bpy.context.scene.custom_props.enum_axis_x == 'X':
             x = float(data["qX"])
-        elif bpy.context.scene.custom_props.enum_axis_x == '1':
+        elif bpy.context.scene.custom_props.enum_axis_x == 'Y':
             x = float(data["qY"])
         else:
             x = float(data["qZ"])
             
-        if bpy.context.scene.custom_props.enum_axis_y == '0':
+        if bpy.context.scene.custom_props.enum_axis_y == 'X':
             y = float(data["qX"])
-        elif bpy.context.scene.custom_props.enum_axis_y == '1':
+        elif bpy.context.scene.custom_props.enum_axis_y == 'Y':
             y = float(data["qY"])
         else:
             y = float(data["qZ"])
             
-        if bpy.context.scene.custom_props.enum_axis_z == '0':
+        if bpy.context.scene.custom_props.enum_axis_z == 'X':
             z = float(data["qX"])
-        elif bpy.context.scene.custom_props.enum_axis_z == '1':
+        elif bpy.context.scene.custom_props.enum_axis_z == 'Y':
             z = float(data["qY"])
         else:
             z = float(data["qZ"])
@@ -524,6 +477,31 @@ class SavePreset(Operator):
         return not calibrate
     
     def execute(self, context):
+        global PRESETS
+        global presets_enum
+
+        sel_bone = bpy.context.active_pose_bone.name
+
+        preset = {
+            "name" : sel_bone,
+
+            "X" : bpy.context.scene.custom_props.enum_axis_x,
+            "Xinverted" : bpy.context.scene.custom_props.axis_x_invert,
+            "Xlocked" : bpy.context.scene.custom_props.axis_x_lock,
+
+            "Y" : bpy.context.scene.custom_props.enum_axis_y,
+            "Yinverted" : bpy.context.scene.custom_props.axis_y_invert,
+            "Ylocked" : bpy.context.scene.custom_props.axis_y_lock,
+
+            "Z" : bpy.context.scene.custom_props.enum_axis_z,
+            "Zinverted" : bpy.context.scene.custom_props.axis_z_invert,
+            "Zlocked" : bpy.context.scene.custom_props.axis_z_lock
+        }
+
+        PRESETS.add_preset(preset)
+
+        bpy.context.scene.custom_props.enum_presets = sel_bone
+
         return {'FINISHED'}
 
 class RemovePreset(Operator):
@@ -533,9 +511,18 @@ class RemovePreset(Operator):
     @classmethod
     def poll(cls, context):
         global calibrate
-        return not calibrate
+        selected_preset = str(context.scene.custom_props.enum_presets)
+        return not calibrate and selected_preset != 'None' and selected_preset != ''
     
     def execute(self, context):
+        global PRESETS
+        global presets_enum
+
+        selected_preset = str(context.scene.custom_props.enum_presets)
+        PRESETS.remove_preset(selected_preset)
+
+        bpy.context.scene.custom_props.enum_presets = 'None'
+
         return {'FINISHED'}
 
 

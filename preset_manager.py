@@ -1,3 +1,4 @@
+from __future__ import with_statement
 import bpy
 import json
 import pathlib
@@ -28,16 +29,22 @@ class PresetManager:
     
         self.PRESETS = []
 
+    def reset_presets(self):
+        self.PRESETS = []
+
 
     def load_user_presets(self):
         global path_presets
         ### Load User Saved Presets
-        with open(path_presets) as json_presets:
-            data = json.load(json_presets)
-            for dict_preset in data:
-                self.PRESETS.append(dict_preset)
+        try:
+            with open(path_presets) as json_presets:
+                data = json.load(json_presets)
+                for dict_preset in data:
+                    self.PRESETS.append(dict_preset)
 
-        return self.PRESETS
+            return self.PRESETS
+        except:
+            return None
 
 
     def remove_preset(self, name : str):
@@ -45,6 +52,7 @@ class PresetManager:
         for dict_preset in self.PRESETS:
             if dict_preset['name'] == name:
                 self.PRESETS.remove(dict_preset)
+                print('removed!')
 
         self.save_presets()
 
@@ -71,7 +79,7 @@ class PresetManager:
                 break
 
         if need_new:
-            self.PRESETS.append(dict_preset)
+            self.PRESETS.append(new_data)
 
         self.save_presets()
 
