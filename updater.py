@@ -20,7 +20,6 @@ anim_frame = 0
 last_anim_frame = 0
 calibration_count = 0
 calibration_samples = 100
-conn_established = False
 
 PRESETS = PresetManager()
 
@@ -70,9 +69,6 @@ def preset_changed(self, context):
         bpy.context.scene.custom_props.axis_x_lock = False
         bpy.context.scene.custom_props.axis_y_lock = False
         bpy.context.scene.custom_props.axis_z_lock = False
-
-
-
 
 class MyProperties(PropertyGroup):
     RotationQuat: FloatVectorProperty(
@@ -235,9 +231,7 @@ def quat_multiply(q1 : Quaternion, q2 : Quaternion):
     return Quaternion(q1.sensorName, qX, qY, qZ, qW)
     
 
-serverATS = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 def thread_update():
-    global serverATS
     global calibrate
     global calib_started
     global sensor_calibration
@@ -247,14 +241,15 @@ def thread_update():
     global streaming
     global last_quat
     global animating
-    global conn_established
-
+    
     UDP_IP_ADDRESS = "0.0.0.0"
     UDP_PORT_NO = 7755
-    BUFFER_SIZE = 4096
+    BUFFER_SIZE = 1024
 
-    serverATS.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    serverATS.bind((UDP_IP_ADDRESS, UDP_PORT_NO))
+    serverSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    serverSock.bind((UDP_IP_ADDRESS, UDP_PORT_NO))
+    
+    scene = bpy.context.scene
     
     ob = bpy.data.objects[bpy.context.scene.arma]
     pbone = ob.pose.bones["Head"]
@@ -262,7 +257,7 @@ def thread_update():
     last_rotation_quat = pbone.rotation_quaternion
     
     while(streaming):
-        data, addr = serverATS.recvfrom(BUFFER_SIZE)
+        data, addr = serverSock.recvfrom(BUFFER_SIZE)
         data = json.loads(data.decode('utf-8'))
         
         w = float(data["qW"])
@@ -347,7 +342,7 @@ def thread_update():
             gyroQuaternion = quat_multiply(gyroQuaternionInverse, gyroQuaternionCalibrationResult)
 
             MESSAGE = gyroQuaternion.toJSON().encode()
-            serverATS.sendto(MESSAGE, ("192.168.1.47", 8855))
+            serverSock.sendto(MESSAGE, ("192.168.1.47", 8855))
 
             quat = (gyroQuaternion.qW, gyroQuaternion.qX, gyroQuaternion.qY, gyroQuaternion.qZ)
             
@@ -408,40 +403,14 @@ class SimpleOperator(Operator):
         global streaming
         global thread
         global anim_frame
-        global conn_established
-        global serverATS
-
-        UDP_IP_ADDRESS = "0.0.0.0"
-        UDP_PORT_NO = 7755
-        UDP_IP_CONN = "192.168.1.43"
-        UDP_PORT_CONN = 11165
-        BUFFER_SIZE = 1024
-        
-        serverSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        serverSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         if not streaming:
-            CONN_MSG = ">-establish_connection"
-            wait_conn = True
-            while wait_conn:
-                    serverSock.sendto(CONN_MSG.encode('utf-8'), (UDP_IP_CONN, UDP_PORT_CONN))
-                    data = serverSock.recv(BUFFER_SIZE).decode("utf-8", "ignore")
-                    if data == ">-connection-established":
-                        wait_conn = False
-
-            serverSock.shutdown(socket.SHUT_RDWR)
-            serverSock.close()
-
             streaming = True
             thread = thread_with_trace(target = thread_update) 
             thread.start() 
             if thread.isAlive(): 
                 print('thread started')
         else:
-            CONN_MSG = ">-close_connection"
-            serverSock.sendto(CONN_MSG.encode('utf-8'), (UDP_IP_CONN, UDP_PORT_CONN))
-
             streaming = False
-            conn_established = True
             thread.kill() 
             thread.join() 
             if not thread.isAlive(): 
