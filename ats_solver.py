@@ -1,7 +1,14 @@
 import numpy as np
 import math
-from pyquaternion import Quaternion as pyQuaternion
 import json
+import sys
+
+sys.path.insert(1, './pyquaternion/pyquaternion/')
+try:
+    from .pyquaternion.pyquaternion.quaternion import Quaternion as pyQuaternion
+except:
+    from pyquaternion.pyquaternion.quaternion import Quaternion as pyQuaternion
+
 
 class Quaternion:
     def __init__(self, sensor_name, qX=0.0, qY=0.0, qZ=0.0, qW=0.0):

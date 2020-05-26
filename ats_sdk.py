@@ -1,20 +1,27 @@
 import socket
 import time
 import json
-
-from ats_solver import *
+try:
+    from .ats_solver import *
+except:
+    from ats_solver import *
 
 class ATS_SDK():
-    def __init__(self, auto_connect : bool, addr="0.0.0.0", port=7755, time_out=3.0):
+    def __init__(self, auto_connect : bool, addr="", port=7755, time_out=3.0):
         self.connected = False
 
         self.addr = addr
         self.port = port
+        self.port_connection = 11165
 
-        self.port_connection = 11153
-        
-        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.client_socket.settimeout(time_out)
+        self.soc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.soc.settimeout(3.0)
+        self.soc.bind((self.addr, self.port))
+
+        self.IP_DISCOVERING = True
+        self.DISCOVERED_IP = None
+        self.CONNECTION_MESSAGE = b">-establish_connection"
+        self.DISCONNECTION_MESSAGE = b">-disconnect_requested"
 
         self.last_rotation_quat = Quaternion("none", 0, 0, 0, 0)
 
@@ -22,56 +29,41 @@ class ATS_SDK():
             self.connect()
 
     def connect(self):
+        while self.IP_DISCOVERING:
+            message, address = self.soc.recvfrom(1024)
+            message = message.decode('utf-8')
+
+            if message.startswith("ATS_IP:"):
+                self.DISCOVERED_IP =  (address[0], self.port_connection)
+                self.IP_DISCOVERING = False
+
         for pings in range(20):
-            message = b'>-establish_connection'
-            addr = (self.addr, self.port_connection)
+            self.soc.sendto(self.CONNECTION_MESSAGE, self.DISCOVERED_IP)
 
-            start = time.time()
-            self.client_socket.sendto(message, addr)
-            try:
-                data, server = self.client_socket.recvfrom(1024)
+            data, server = self.soc.recvfrom(1024)
+            data = data.decode('utf-8')
 
-                # Successful connection
-                if data.decode('utf-8') == ">-connection_accepted":
-                    self.connected = True
-
-                    end = time.time()
-                    elapsed = end - start
-                    print(f'{data} {pings} {elapsed}')
-                    
-                    return True
-            except socket.timeout:
-                print('REQUEST TIMED OUT')
+            if data == ">-connection_accepted":
+                print("Connection Established Successfully")
+                return True
         return False
 
     def disconnect(self):
         for pings in range(20):
-            message = b'>-disconnection_requested'
-            addr = (self.addr, self.port_connection)
+            self.soc.sendto(self.DISCONNECTION_MESSAGE, self.DISCOVERED_IP)
+            data, server = self.soc.recvfrom(1024)
+            data = data.decode('utf-8')
 
-            start = time.time()
-            self.client_socket.sendto(message, addr)
-            try:
-                data, server = self.client_socket.recvfrom(1024)
-
-                # Successful connection
-                if data.decode('utf-8') == ">-disconnection_accepted":
-                    self.connected = True
-
-                    end = time.time()
-                    elapsed = end - start
-                    print(f'{data} {pings} {elapsed}')
-                    return True
-            except socket.timeout:
-                print('REQUEST TIMED OUT')
-        
+            if data == ">-disconnect_accepted":
+                print("Disconnection Established Successfully")
+                return True
         return False
 
     def get_raw_data(self):
         if self.connected:
-            data, server = self.client_socket.recvfrom(1024)
-            data = json.loads(data.decode('utf-8'))
-
+            data, server = self.soc.recvfrom(1024)
+            data = data.decode('utf-8')
+            json_s = json.loads(data)
             return data
         else:
             return None
@@ -120,7 +112,7 @@ class ATS_SDK():
             if axis_settings['Z_Lock']:
                 z = self.last_rotation_quat.qZ
             if axis_settings['X_Lock'] and axis_settings['Y_Lock'] and axis_settings['Z_Lock']:
-                w = last_rotation_quat.qW
+                w = self.last_rotation_quat.qW
 
             return Quaternion(axis_settings["Name"], qX=x, qY=y, qZ=z, qW=w)
 

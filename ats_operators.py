@@ -2,8 +2,13 @@ import bpy
 import sys, threading, time
 from bpy.types import (Panel, Operator, PropertyGroup)
 from bpy.props import (FloatVectorProperty, IntProperty, EnumProperty, BoolProperty, PointerProperty)
-from . ats_preset_manager import PresetManager
-from . ats_sdk import ATS_SDK
+
+try:
+    from . ats_preset_manager import PresetManager
+    from . ats_sdk import ATS_SDK
+except:
+    from ats_preset_manager import PresetManager
+    from ats_sdk import ATS_SDK
 
 calibrate = False
 streaming = False
