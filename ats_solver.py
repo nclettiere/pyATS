@@ -97,26 +97,26 @@ def quat_to_euler(quat):
     return euler
     
 
-def interpolate_angles(q1 : Quaternion, q2 : Quaternion, amount=0.5):
-    from scipy.spatial.transform import Slerp
-    
-    qn1 = pyQuaternion(x=q1.qX, y=q1.qY, z=q1.qZ, w=q1.qW)
-    qn2 = pyQuaternion(x=q2.qX, y=q2.qY, z=q2.qZ, w=q2.qW)
-    
-    qnew = pyQuaternion.slerp(qn1, qn2, amount=amount)
-    
-    print("{} {} {} {}".format(qnew.x, qnew.y, qnew.z, qnew.w))
+class QuatSolver():
+    def interpolate_angles(self, q1 : Quaternion, q2 : Quaternion, amount=0.5):
+        from scipy.spatial.transform import Slerp
 
-    return Quaternion(q2.sensorName, qX=qnew.x, qY=qnew.y, qZ=qnew.z, qW=qnew.w)
+        qn1 = pyQuaternion(x=q1.qX, y=q1.qY, z=q1.qZ, w=q1.qW)
+        qn2 = pyQuaternion(x=q2.qX, y=q2.qY, z=q2.qZ, w=q2.qW)
 
+        qnew = pyQuaternion.slerp(qn1, qn2, amount=amount)
 
-def quat_multiply(q1 : Quaternion, q2 : Quaternion):
-    qX = q1.qW * q2.qX + q1.qX * q2.qW + q1.qY * q2.qZ - q1.qZ * q2.qY
-    qY = q1.qW * q2.qY + q1.qY * q2.qW + q1.qZ * q2.qX - q1.qX * q2.qZ
-    qZ = q1.qW * q2.qZ + q1.qZ * q2.qW + q1.qX * q2.qY - q1.qY * q2.qX
-    qW = q1.qW * q2.qW - q1.qX * q2.qX - q1.qY * q2.qY - q1.qZ * q2.qZ
+        print("{} {} {} {}".format(qnew.x, qnew.y, qnew.z, qnew.w))
 
-    return Quaternion(q1.sensorName, qX, qY, qZ, qW)
+        return Quaternion(q2.sensorName, qX=qnew.x, qY=qnew.y, qZ=qnew.z, qW=qnew.w)
+
+    def quat_multiply(self, q1 : Quaternion, q2 : Quaternion):
+        qX = q1.qW * q2.qX + q1.qX * q2.qW + q1.qY * q2.qZ - q1.qZ * q2.qY
+        qY = q1.qW * q2.qY + q1.qY * q2.qW + q1.qZ * q2.qX - q1.qX * q2.qZ
+        qZ = q1.qW * q2.qZ + q1.qZ * q2.qW + q1.qX * q2.qY - q1.qY * q2.qX
+        qW = q1.qW * q2.qW - q1.qX * q2.qX - q1.qY * q2.qY - q1.qZ * q2.qZ
+
+        return Quaternion(q1.sensorName, qX, qY, qZ, qW)
 
 class QuaternionCalibrationModel:
     def __init__(self, GyroQuaternion : Quaternion, CalibrationCount=0, CalibrationComplete=False):

@@ -88,7 +88,13 @@ def unregister():
     from bpy.utils import unregister_class
     for cls in reversed(classes):
         unregister_class(cls)
-    del bpy.types.Scene.my_tool
+
+    del bpy.types.Scene.ats_props
+    del bpy.types.Scene.arma
+    del bpy.types.Scene.bone
+    del bpy.types.Scene.arma_coll
+    del bpy.types.Scene.arma_name
+    del bpy.types.Scene.bone_name
 
 
 

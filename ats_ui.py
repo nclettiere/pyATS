@@ -1,5 +1,10 @@
 import bpy
 
+try:
+    from . ats_operators import *
+except:
+    from ats_operators import *
+
 class Linker_PT_Panel(bpy.types.Panel):
     bl_idname = "object.ats_panel"
     bl_label = "ATS"
@@ -14,10 +19,9 @@ class Linker_PT_Panel(bpy.types.Panel):
         layout = self.layout
         customprops = scene.ats_props
         
-        global streaming
         text="Start Stream"
         icon="TRIA_RIGHT"
-        if streaming:
+        if bpy.context.scene.ats_props.streaming:
             text="Disconnect"
             icon="PAUSE"
         else:
@@ -52,12 +56,12 @@ class Linker_PT_Panel(bpy.types.Panel):
             icon_lock_z = "UNLOCKED"
             text_lock_z = "Unlocked"
          
-        if calibrate:
+        if bpy.context.scene.ats_props.calibrate:
            layout.enabled = False 
         else:
             layout.enabled = True 
 
-        if animating:
+        if bpy.context.scene.ats_props.animating:
             icon_anim = "PAUSE"
             text_anim = "Stop Animation"
         else:

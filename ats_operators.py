@@ -7,13 +7,13 @@ try:
     from . ats_preset_manager import PresetManager
     from . ats_sdk import ATS_SDK
     from . ats_solver import SensorCalibration
+    from . ats_solver import QuatSolver
 except:
     from ats_preset_manager import PresetManager
     from ats_sdk import ATS_SDK
     from ats_solver import SensorCalibration
+    from ats_solver import QuatSolver
 
-calibrate = False
-streaming = False
 calib_started = False
 animating = False
 last_quat = None
@@ -36,34 +36,35 @@ class ConnectionManager(Operator):
     
     @classmethod
     def poll(cls, context):
-        global calibrate
-        global animating
-        global streaming
 
-        if streaming and bpy.context.screen.is_animation_playing:
-            animating = False
+        if bpy.context.scene.ats_props.streaming and bpy.context.screen.is_animation_playing:
+            bpy.context.scene.ats_props.animating = False
             connection_thread.kill() 
             connection_thread.join() 
-            if not thread.isAlive(): 
+            if not connection_thread.isAlive(): 
                 print('animation playing, connection_thread killed') 
                 anim_frame = 1
 
-        return not calibrate and not animating and not bpy.context.screen.is_animation_playing
+        return not bpy.context.scene.ats_props.calibrate and not bpy.context.scene.ats_props.animating and not bpy.context.screen.is_animation_playing
         
     def execute(self, context):
-        global streaming
         global connection_thread
         global anim_frame
-        if not streaming:
-            streaming = True
+        if not bpy.context.scene.ats_props.streaming:
+            bpy.context.scene.ats_props.streaming = True
             connection_thread = thread_with_trace(target = thread_update) 
             connection_thread.start() 
             if connection_thread.isAlive(): 
                 print('thread started')
         else:
-            streaming = False
+            bpy.context.scene.ats_props.streaming = False
             connection_thread.kill() 
             connection_thread.join() 
+            ## Disconnect when streaming signal is false
+            disconnected = False
+            while not disconnected:
+                disconnected = SDK.disconnect()
+                print("Disconnectiong ...")
             if not connection_thread.isAlive(): 
                 print('thread killed') 
                 anim_frame = 1
@@ -77,13 +78,11 @@ class CalibrateOperator(Operator):
     
     @classmethod
     def poll(cls, context):
-        global calibrate
-        return not calibrate
+        return not bpy.context.scene.ats_props.calibrate
     
     def execute(self, context):
-        global calibrate
         global sensor_calibration
-        #calibrate = True
+        #bpy.context.scene.ats_props.calibrate = True
         sensor_calibration = SensorCalibration()
         self.report({'PROPERTY'}, "Calibration has started, please wait.")
         return {'FINISHED'}
@@ -95,24 +94,21 @@ class AnimateOperator(Operator):
     
     @classmethod
     def poll(cls, context):
-        global calibrate
-        global streaming
-        return not calibrate and streaming
+        return not bpy.context.scene.ats_props.calibrate and bpy.context.scene.ats_props.streaming
     
     def execute(self, context):
-        global animating
         global anim_frame
 
-        if not bpy.context.scene.custom_props.start_in_last_keyframe:
-            anim_frame =  bpy.context.scene.custom_props.frame_start
+        if not bpy.context.scene.ats_props.start_in_last_keyframe:
+            anim_frame =  bpy.context.scene.ats_props.frame_start
 
         try:
-            if not animating and bpy.context.scene.custom_props.replace_current_keyframes:
+            if not bpy.context.scene.ats_props.animating and bpy.context.scene.ats_props.replace_current_keyframes:
                 bpy.context.active_object.animation_data_clear()
         except Exception as e:
             print('Failed: '+ str(e))
 
-        animating = not animating
+        bpy.context.scene.ats_props.animating = not bpy.context.scene.ats_props.animating
 
         #self.report({'INFO'}, "Calibration has started, please wait.")
         return {'FINISHED'}
@@ -124,8 +120,7 @@ class SavePreset(Operator):
     
     @classmethod
     def poll(cls, context):
-        global calibrate
-        return not calibrate
+        return not bpy.context.scene.ats_props.calibrate
     
     def execute(self, context):
         global PRESETS
@@ -136,22 +131,22 @@ class SavePreset(Operator):
         preset = {
             "name" : sel_bone,
 
-            "X" : bpy.context.scene.custom_props.enum_axis_x,
-            "Xinverted" : bpy.context.scene.custom_props.axis_x_invert,
-            "Xlocked" : bpy.context.scene.custom_props.axis_x_lock,
+            "X" : bpy.context.scene.ats_props.enum_axis_x,
+            "Xinverted" : bpy.context.scene.ats_props.axis_x_invert,
+            "Xlocked" : bpy.context.scene.ats_props.axis_x_lock,
 
-            "Y" : bpy.context.scene.custom_props.enum_axis_y,
-            "Yinverted" : bpy.context.scene.custom_props.axis_y_invert,
-            "Ylocked" : bpy.context.scene.custom_props.axis_y_lock,
+            "Y" : bpy.context.scene.ats_props.enum_axis_y,
+            "Yinverted" : bpy.context.scene.ats_props.axis_y_invert,
+            "Ylocked" : bpy.context.scene.ats_props.axis_y_lock,
 
-            "Z" : bpy.context.scene.custom_props.enum_axis_z,
-            "Zinverted" : bpy.context.scene.custom_props.axis_z_invert,
-            "Zlocked" : bpy.context.scene.custom_props.axis_z_lock
+            "Z" : bpy.context.scene.ats_props.enum_axis_z,
+            "Zinverted" : bpy.context.scene.ats_props.axis_z_invert,
+            "Zlocked" : bpy.context.scene.ats_props.axis_z_lock
         }
 
         PRESETS.add_preset(preset)
 
-        bpy.context.scene.custom_props.enum_presets = sel_bone
+        bpy.context.scene.ats_props.enum_presets = sel_bone
 
         return {'FINISHED'}
 
@@ -161,18 +156,17 @@ class RemovePreset(Operator):
     
     @classmethod
     def poll(cls, context):
-        global calibrate
-        selected_preset = str(context.scene.custom_props.enum_presets)
-        return not calibrate and selected_preset != 'None' and selected_preset != ''
+        selected_preset = str(context.scene.ats_props.enum_presets)
+        return not bpy.context.scene.ats_props.calibrate and selected_preset != 'None' and selected_preset != ''
     
     def execute(self, context):
         global PRESETS
         global presets_enum
 
-        selected_preset = str(context.scene.custom_props.enum_presets)
+        selected_preset = str(context.scene.ats_props.enum_presets)
         PRESETS.remove_preset(selected_preset)
 
-        bpy.context.scene.custom_props.enum_presets = 'None'
+        bpy.context.scene.ats_props.enum_presets = 'None'
 
         return {'FINISHED'}
 
@@ -208,15 +202,12 @@ class thread_with_trace(threading.Thread):
     self.killed = True
 
 def thread_update():
-    global calibrate
     global calib_started
     global sensor_calibration
     global anim_frame
     global last_anim_frame
     global calibration_count
-    global streaming
     global last_quat
-    global animating
     
     scene = bpy.context.scene
     
@@ -231,27 +222,28 @@ def thread_update():
     while not connected:
         connected = SDK.connect()
 
-    while(streaming):
+    while(bpy.context.scene.ats_props.streaming):
 
         axis_settings = {
             "Name": "GyroSensor00",
 
-            "X_Tweak": bpy.context.scene.custom_props.enum_axis_x,
-            "Y_Tweak": bpy.context.scene.custom_props.enum_axis_y,
-            "Z_Tweak": bpy.context.scene.custom_props.enum_axis_z,
+            "X_Tweak": bpy.context.scene.ats_props.enum_axis_x,
+            "Y_Tweak": bpy.context.scene.ats_props.enum_axis_y,
+            "Z_Tweak": bpy.context.scene.ats_props.enum_axis_z,
 
-            "X_Inversion": bpy.context.scene.custom_props.axis_x_invert,
-            "Y_Inversion": bpy.context.scene.custom_props.axis_y_invert,
-            "Z_Inversion": bpy.context.scene.custom_props.axis_z_invert,
+            "X_Inversion": bpy.context.scene.ats_props.axis_x_invert,
+            "Y_Inversion": bpy.context.scene.ats_props.axis_y_invert,
+            "Z_Inversion": bpy.context.scene.ats_props.axis_z_invert,
 
-            "X_Lock": bpy.context.scene.custom_props.axis_x_lock,
-            "Y_Lock": bpy.context.scene.custom_props.axis_y_lock,
-            "Z_Lock": bpy.context.scene.custom_props.axis_z_lock,
+            "X_Lock": bpy.context.scene.ats_props.axis_x_lock,
+            "Y_Lock": bpy.context.scene.ats_props.axis_y_lock,
+            "Z_Lock": bpy.context.scene.ats_props.axis_z_lock,
         }
 
         q = SDK.get_quaternion(axis_settings)
 
         if q == None:
+            print("Noooone!")
             continue
 
         sensor_calibration.push(q)
@@ -260,7 +252,7 @@ def thread_update():
         gyroQuaternionCalibrationResult = sensor_calibration.get_calib_result(axis_settings["Name"])
 
         if gyroQuaternionCalibrationResult != None:
-            gyroQuaternion = quat_multiply(gyroQuaternionInverse, gyroQuaternionCalibrationResult)
+            gyroQuaternion = QuatSolver().quat_multiply(gyroQuaternionInverse, gyroQuaternionCalibrationResult)
 
             #MESSAGE = gyroQuaternion.toJSON().encode()
             #serverSock.sendto(MESSAGE, ("192.168.1.47", 8855))
@@ -269,7 +261,7 @@ def thread_update():
             
             # interpolate with last quaternion
             if last_quat != None:
-                new_quat = interpolate_angles(last_quat, gyroQuaternion, amount=0.5)
+                new_quat = QuatSolver().interpolate_angles(last_quat, gyroQuaternion, amount=0.5)
                 
                 quat = (new_quat.qW, new_quat.qX, new_quat.qY, new_quat.qZ)
 
@@ -279,29 +271,24 @@ def thread_update():
                 pbone.rotation_quaternion = quat
                 
             last_quat = gyroQuaternion
-        if animating and bpy.context.scene.custom_props.frame_end == 0:
+        if bpy.context.scene.ats_props.animating and bpy.context.scene.ats_props.frame_end == 0:
             #insert a keyframe
             pbone.keyframe_insert(data_path="rotation_quaternion", frame=anim_frame)
             last_anim_frame = anim_frame
             anim_frame += 1
-            if bpy.context.scene.custom_props.start_in_last_keyframe:
-                bpy.context.scene.custom_props.frame_start = anim_frame
-        elif animating and anim_frame <= bpy.context.scene.custom_props.frame_end:
+            if bpy.context.scene.ats_props.start_in_last_keyframe:
+                bpy.context.scene.ats_props.frame_start = anim_frame
+        elif bpy.context.scene.ats_props.animating and anim_frame <= bpy.context.scene.ats_props.frame_end:
             #insert a keyframe
             pbone.keyframe_insert(data_path="rotation_quaternion", frame=anim_frame)
             last_anim_frame = anim_frame
             anim_frame += 1
-            if bpy.context.scene.custom_props.start_in_last_keyframe:
-                bpy.context.scene.custom_props.frame_start = anim_frame
+            if bpy.context.scene.ats_props.start_in_last_keyframe:
+                bpy.context.scene.ats_props.frame_start = anim_frame
         else:
-            animating = False
+            bpy.context.scene.ats_props.animating = False
 
         time.sleep(0.001) #update rate in seconds
-
-    ## Disconnect when streaming signal is false
-    disconnected = False
-    while not disconnected:
-        disconnected = SDK.disconnect()
 
 def get_enums(self, context):
     global PRESETS
@@ -310,7 +297,7 @@ def get_enums(self, context):
 ## TODO : Multisensor support
 def preset_changed(self, context):
     global PRESETS
-    selected_preset = str(context.scene.custom_props.enum_presets)
+    selected_preset = str(context.scene.ats_props.enum_presets)
 
     X = "X"
     Y = "Y"
@@ -323,28 +310,28 @@ def preset_changed(self, context):
         Y = str(preset['Y'])
         Z = str(preset['Z'])
 
-        bpy.context.scene.custom_props.enum_axis_x = X
-        bpy.context.scene.custom_props.enum_axis_y = Y
-        bpy.context.scene.custom_props.enum_axis_z = Z
+        bpy.context.scene.ats_props.enum_axis_x = X
+        bpy.context.scene.ats_props.enum_axis_y = Y
+        bpy.context.scene.ats_props.enum_axis_z = Z
     
-        bpy.context.scene.custom_props.axis_x_invert = bool(preset["Xinverted"])
-        bpy.context.scene.custom_props.axis_y_invert = bool(preset["Yinverted"])
-        bpy.context.scene.custom_props.axis_z_invert = bool(preset["Zinverted"])
+        bpy.context.scene.ats_props.axis_x_invert = bool(preset["Xinverted"])
+        bpy.context.scene.ats_props.axis_y_invert = bool(preset["Yinverted"])
+        bpy.context.scene.ats_props.axis_z_invert = bool(preset["Zinverted"])
             
-        bpy.context.scene.custom_props.axis_x_lock = bool(preset["Xlocked"])
-        bpy.context.scene.custom_props.axis_y_lock = bool(preset["Ylocked"])
-        bpy.context.scene.custom_props.axis_z_lock = bool(preset["Zlocked"])
+        bpy.context.scene.ats_props.axis_x_lock = bool(preset["Xlocked"])
+        bpy.context.scene.ats_props.axis_y_lock = bool(preset["Ylocked"])
+        bpy.context.scene.ats_props.axis_z_lock = bool(preset["Zlocked"])
 
     else:
-        bpy.context.scene.custom_props.enum_axis_x = X
-        bpy.context.scene.custom_props.enum_axis_y = Y
-        bpy.context.scene.custom_props.enum_axis_z = Z
-        bpy.context.scene.custom_props.axis_x_invert = False
-        bpy.context.scene.custom_props.axis_y_invert = False
-        bpy.context.scene.custom_props.axis_z_invert = False
-        bpy.context.scene.custom_props.axis_x_lock = False
-        bpy.context.scene.custom_props.axis_y_lock = False
-        bpy.context.scene.custom_props.axis_z_lock = False
+        bpy.context.scene.ats_props.enum_axis_x = X
+        bpy.context.scene.ats_props.enum_axis_y = Y
+        bpy.context.scene.ats_props.enum_axis_z = Z
+        bpy.context.scene.ats_props.axis_x_invert = False
+        bpy.context.scene.ats_props.axis_y_invert = False
+        bpy.context.scene.ats_props.axis_z_invert = False
+        bpy.context.scene.ats_props.axis_x_lock = False
+        bpy.context.scene.ats_props.axis_y_lock = False
+        bpy.context.scene.ats_props.axis_z_lock = False
 
 class ATS_Properties(PropertyGroup):
     RotationQuat: FloatVectorProperty(
@@ -466,3 +453,20 @@ class ATS_Properties(PropertyGroup):
         update=preset_changed
     )
 
+    streaming: BoolProperty(
+        name = "ATS Streaming",
+        description = "Get ATS isStreaming value",
+        default=False
+    )
+
+    calibrate: BoolProperty(
+        name = "ATS Calibrate",
+        description = "Calibrate ATS System",
+        default=False
+    )
+
+    animating: BoolProperty(
+        name = "ATS animating",
+        description = "animating ATS System",
+        default=False
+    )

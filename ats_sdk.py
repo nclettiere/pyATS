@@ -29,6 +29,17 @@ class ATS_SDK():
             self.connect()
 
     def connect(self):
+        try:
+            data, server = self.soc.recvfrom(1024)
+            data = data.decode('utf-8')
+            if data != None:
+                json.loads(data)
+                print("Already connected. Resuming.")
+                self.connected = True
+                return True
+        except:
+            print('NULL REQUEST')
+
         while self.IP_DISCOVERING:
             message, address = self.soc.recvfrom(1024)
             message = message.decode('utf-8')
@@ -45,6 +56,7 @@ class ATS_SDK():
 
             if data == ">-connection_accepted":
                 print("Connection Established Successfully")
+                self.connected = True
                 return True
         return False
 
@@ -56,16 +68,19 @@ class ATS_SDK():
 
             if data == ">-disconnect_accepted":
                 print("Disconnection Established Successfully")
+                self.connected = False
                 return True
         return False
 
     def get_raw_data(self):
-        if self.connected:
+        try:
             data, server = self.soc.recvfrom(1024)
             data = data.decode('utf-8')
-            json_s = json.loads(data)
-            return data
-        else:
+            if data != None:
+                return json.loads(data)
+            else:
+                return None
+        except socket.timeout:
             return None
 
     def get_quaternion(self, axis_settings : dict):
@@ -118,3 +133,11 @@ class ATS_SDK():
 
         else:
             return None
+
+def quat_multiply(q1 : Quaternion, q2 : Quaternion):
+    qX = q1.qW * q2.qX + q1.qX * q2.qW + q1.qY * q2.qZ - q1.qZ * q2.qY
+    qY = q1.qW * q2.qY + q1.qY * q2.qW + q1.qZ * q2.qX - q1.qX * q2.qZ
+    qZ = q1.qW * q2.qZ + q1.qZ * q2.qW + q1.qX * q2.qY - q1.qY * q2.qX
+    qW = q1.qW * q2.qW - q1.qX * q2.qX - q1.qY * q2.qY - q1.qZ * q2.qZ
+
+    return Quaternion(q1.sensorName, qX, qY, qZ, qW)
