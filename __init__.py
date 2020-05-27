@@ -33,8 +33,9 @@ from . ats_operators import AnimateOperator
 from . ats_operators import SavePreset
 from . ats_operators import RemovePreset
 from . ats_operators import ATS_Properties
+from . ats_operators import *
+from . ats_ui import Linker_PT_Panel
 
-from . ats_ui import ATS_Linker_Panel
 
 auto_load.init()
 
@@ -45,14 +46,49 @@ classes = (
     AnimateOperator,
     SavePreset,
     RemovePreset,
-    ATS_Linker_Panel
+    Linker_PT_Panel
 )
 
 register, unregister = bpy.utils.register_classes_factory(classes)
 
-bpy.types.Scene.ats_props = PointerProperty(type=ATS_Properties)
-bpy.types.Scene.arma = bpy.props.EnumProperty(items=arma_items, update=arma_upd)
-bpy.types.Scene.bone = bpy.props.EnumProperty(items=bone_items)
-bpy.types.Scene.arma_coll  = bpy.props.CollectionProperty(type=bpy.types.PropertyGroup)
-bpy.types.Scene.arma_name = bpy.props.StringProperty()
-bpy.types.Scene.bone_name = bpy.props.StringProperty()
+
+def arma_items(self, context):
+    obs = []
+    for ob in context.scene.objects:
+        if ob.type == 'ARMATURE':
+            obs.append((ob.name, ob.name, ""))
+    return obs
+
+def arma_upd(self, context):
+    self.arma_coll.clear()
+    for ob in context.scene.objects:
+        if ob.type == 'ARMATURE':
+            item = self.arma_coll.add()
+            item.name = ob.name
+
+def bone_items(self, context):
+    arma = context.scene.objects.get(self.arma)
+    if arma is None:
+        return
+    return [(bone.name, bone.name, "") for bone in arma.data.bones]
+
+def register():
+    from bpy.utils import register_class
+    for cls in classes:
+        register_class(cls)
+
+    bpy.types.Scene.ats_props = PointerProperty(type=ATS_Properties)
+    bpy.types.Scene.arma = bpy.props.EnumProperty(items=arma_items, update=arma_upd)
+    bpy.types.Scene.bone = bpy.props.EnumProperty(items=bone_items)
+    bpy.types.Scene.arma_coll = bpy.props.CollectionProperty(type=bpy.types.PropertyGroup)
+    bpy.types.Scene.arma_name = bpy.props.StringProperty()
+    bpy.types.Scene.bone_name = bpy.props.StringProperty()
+    
+def unregister():
+    from bpy.utils import unregister_class
+    for cls in reversed(classes):
+        unregister_class(cls)
+    del bpy.types.Scene.my_tool
+
+
+

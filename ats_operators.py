@@ -6,9 +6,11 @@ from bpy.props import (FloatVectorProperty, IntProperty, EnumProperty, BoolPrope
 try:
     from . ats_preset_manager import PresetManager
     from . ats_sdk import ATS_SDK
+    from . ats_solver import SensorCalibration
 except:
     from ats_preset_manager import PresetManager
     from ats_sdk import ATS_SDK
+    from ats_solver import SensorCalibration
 
 calibrate = False
 streaming = False
@@ -463,3 +465,4 @@ class ATS_Properties(PropertyGroup):
         default=None,
         update=preset_changed
     )
+

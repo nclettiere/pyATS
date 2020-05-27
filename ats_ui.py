@@ -1,6 +1,6 @@
 import bpy
 
-class OBPanel(bpy.types.Panel):
+class Linker_PT_Panel(bpy.types.Panel):
     bl_idname = "object.ats_panel"
     bl_label = "ATS"
     bl_space_type = "VIEW_3D"   
@@ -51,8 +51,6 @@ class OBPanel(bpy.types.Panel):
         else:
             icon_lock_z = "UNLOCKED"
             text_lock_z = "Unlocked"
-            
-        view = context.space_data
          
         if calibrate:
            layout.enabled = False 
@@ -69,9 +67,9 @@ class OBPanel(bpy.types.Panel):
         box = layout.box()
         box.label(text="General")
         col = box.column()
-        col.operator(SimpleOperator.bl_idname, text=text, icon=icon)
+        col.operator(ConnectionManager.bl_idname, text=text, icon=icon)
         col.prop(customprops, "calibration_samples", text="Calib. Samples")
-        col.operator(CalibrateOperator.bl_idname, text="Calibrate", icon="SNAP_FACE_CENTER")
+        col.operator(CalibrateOperator.bl_idname, text="Calibrate", icon="PLUS")
         col.separator()
         col.prop(scene, "arma", icon="ARMATURE_DATA", text="Rig")
         
