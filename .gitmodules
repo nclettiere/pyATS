@@ -1,0 +1,3 @@
+[submodule "src/pyquaternion"]
+	path = src/pyquaternion
+	url = https://github.com/Noriaki-Kakyoin/pyquaternion.git
