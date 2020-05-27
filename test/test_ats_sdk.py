@@ -2,9 +2,9 @@ import socket
 import time
 import json
 try:
-    from .ats_solver import *
+    from .test_ats_solver import *
 except:
-    from ats_solver import *
+    from test_ats_solver import *
 
 class ATS_SDK():
     def __init__(self, auto_connect : bool, addr="", port=7755, time_out=3.0):
@@ -134,3 +134,11 @@ class ATS_SDK():
 
         else:
             return None
+
+def quat_multiply(q1 : Quaternion, q2 : Quaternion):
+    qX = q1.qW * q2.qX + q1.qX * q2.qW + q1.qY * q2.qZ - q1.qZ * q2.qY
+    qY = q1.qW * q2.qY + q1.qY * q2.qW + q1.qZ * q2.qX - q1.qX * q2.qZ
+    qZ = q1.qW * q2.qZ + q1.qZ * q2.qW + q1.qX * q2.qY - q1.qY * q2.qX
+    qW = q1.qW * q2.qW - q1.qX * q2.qX - q1.qY * q2.qY - q1.qZ * q2.qZ
+
+    return Quaternion(q1.sensorName, qX, qY, qZ, qW)
