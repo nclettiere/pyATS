@@ -5,6 +5,7 @@ try:
     from .ats_solver import *
 except:
     from ats_solver import *
+    
 
 class ATS_SDK():
     def __init__(self, auto_connect : bool, addr="", port=7755, time_out=3.0):
@@ -14,8 +15,9 @@ class ATS_SDK():
         self.port = port
         self.port_connection = 11165
 
-        self.soc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.soc.bind(("", 7755))
+        self.soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.soc.connect((self.addr, self.port))
+        self.data = self.soc..recv(1024)
 
         self.IP_DISCOVERING = True
         self.DISCOVERED_IP = None
@@ -74,8 +76,7 @@ class ATS_SDK():
         return False
 
     def get_raw_data(self):
-        data, server = self.soc.recvfrom(1024)
-        data = data.decode('utf-8')
+        data = repr(data).decode('utf-8')
         if data != None:
             try:
                 return json.loads(data)
