@@ -7,7 +7,7 @@ except:
     from ats_solver import *
 
 class ATS_SDK():
-    def __init__(self, auto_connect : bool, addr="", port=7755, time_out=3.0):
+    def __init__(self, addr="", port=7755, time_out=3.0):
         self.connected = False
 
         self.addr = addr
@@ -17,71 +17,17 @@ class ATS_SDK():
         self.soc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.soc.bind(("", 7755))
 
-        self.IP_DISCOVERING = True
-        self.DISCOVERED_IP = None
-        self.CONNECTION_MESSAGE = b">-establish_connection"
-        self.DISCONNECTION_MESSAGE = b">-disconnect_requested"
-
         self.last_rotation_quat = Quaternion("none", 0, 0, 0, 0)
 
-        if auto_connect:
-            self.connect()
-
-    def connect(self):
+    def get_raw_data(self):
         try:
             data, server = self.soc.recvfrom(1024)
             data = data.decode('utf-8')
             if data != None:
-                json.loads(data)
-                print("Already connected. Resuming.")
-                self.connected = True
-                return True
-        except:
-            print("")
-            
-
-        while self.IP_DISCOVERING:
-            message, address = self.soc.recvfrom(1024)
-            message = message.decode('utf-8')
-            
-            if message.startswith("ATS_IP:"):
-                self.DISCOVERED_IP =  (address[0], self.port_connection)
-                self.IP_DISCOVERING = False
-
-        conn = False
-        for pings in range(1000):
-            self.soc.sendto(self.CONNECTION_MESSAGE, self.DISCOVERED_IP)
-
-            data, server = self.soc.recvfrom(1024)
-            data = data.decode('utf-8')
-
-            if data == ">-connection_accepted":
-                print("Connection Established Successfully")
-                self.connected = True
-                conn = True
-        return conn
-
-    def disconnect(self):
-        for pings in range(20):
-            self.soc.sendto(self.DISCONNECTION_MESSAGE, self.DISCOVERED_IP)
-            data, server = self.soc.recvfrom(1024)
-            data = data.decode('utf-8')
-
-            if data == ">-disconnect_accepted":
-                print("Disconnection Established Successfully")
-                self.connected = False
-                return True
-        return False
-
-    def get_raw_data(self):
-        data, server = self.soc.recvfrom(1024)
-        data = data.decode('utf-8')
-        if data != None:
-            try:
                 return json.loads(data)
-            except:
+            else:
                 return None
-        else:
+        except:
             return None
 
     def get_quaternion(self, axis_settings : dict):

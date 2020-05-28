@@ -58,16 +58,10 @@ class ConnectionManager(Operator):
                 print('thread started')
         else:
             bpy.context.scene.ats_props.streaming = False
-            connection_thread.kill() 
-            connection_thread.join() 
-            ## Disconnect when streaming signal is false
-            disconnected = False
-            while not disconnected:
-                disconnected = SDK.disconnect()
-                print("Disconnectiong ...")
-            if not connection_thread.isAlive(): 
-                print('thread killed') 
+            while connection_thread.isAlive(): 
+                print('thread killed. waiting response ...') 
                 anim_frame = 1
+            print('good') 
                 
         return {'FINISHED'}
 
@@ -215,12 +209,6 @@ def thread_update():
     pbone = ob.pose.bones["Head"]
     
     last_rotation_quat = pbone.rotation_quaternion
-    
-    ## Establish connection and enter the main loop
-
-    connected = False
-    while not connected:
-        connected = SDK.connect()
 
     while(bpy.context.scene.ats_props.streaming):
 
