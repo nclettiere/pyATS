@@ -2,13 +2,12 @@
 Blender addon for ATS module
 
 ## Installation
-1. Clone the repository - We recommend the stables releases [download here](https://github.com/Noriaki-Kakyoin/pyATS/releases)
+1. Clone the repository
 ```git
 $ git clone --recurse-submodules https://github.com/Noriaki-Kakyoin/pyATS.git
 ```
 
 2. Install Scipy into blender bundled python<br />
-  <b>Only if your blender uses bundled python. Otherwise install Scipy to your current python integration.</b><br />
   ```
     . . ./Blender Foundation/Blender 2.X/2.X/python/bin/python.exe -m pip install scipy
   ```
